@@ -21,19 +21,25 @@ const mockResults: SearchResult[] = [
 ];
 
 describe("ResultList", () => {
-	it("renders nothing for empty results", () => {
-		const { container } = render(() => <ResultList results={[]} />);
+	it("renders nothing for empty results before search", () => {
+		const { container } = render(() => <ResultList results={[]} hasSearched={false} />);
 		expect(container.querySelector(".result-list")).toBeNull();
+		expect(screen.queryByText("No passages found.")).not.toBeInTheDocument();
+	});
+
+	it("shows no-results message when searched with empty results", () => {
+		render(() => <ResultList results={[]} hasSearched={true} />);
+		expect(screen.getByText("No passages found.")).toBeInTheDocument();
 	});
 
 	it("renders correct number of cards", () => {
-		render(() => <ResultList results={mockResults} />);
+		render(() => <ResultList results={mockResults} hasSearched={true} />);
 		const articles = screen.getAllByRole("article");
 		expect(articles).toHaveLength(2);
 	});
 
 	it("has aria-label on the list", () => {
-		render(() => <ResultList results={mockResults} />);
+		render(() => <ResultList results={mockResults} hasSearched={true} />);
 		expect(screen.getByRole("list")).toHaveAttribute("aria-label", "Search results");
 	});
 });

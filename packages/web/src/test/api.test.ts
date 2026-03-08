@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { searchPassages } from "../lib/api.js";
+import { SearchApiError, searchPassages } from "../lib/api.js";
 
 describe("searchPassages", () => {
 	beforeEach(() => {
@@ -38,5 +38,39 @@ describe("searchPassages", () => {
 		await expect(searchPassages("test", 10, { apiBase: "http://localhost:8787" })).rejects.toThrow(
 			"HTTP 500",
 		);
+	});
+
+	it("throws SearchApiError with retryAfter on 429", async () => {
+		globalThis.fetch = vi.fn().mockResolvedValue({
+			ok: false,
+			status: 429,
+			json: () => Promise.resolve({ retryAfter: 30 }),
+		});
+
+		try {
+			await searchPassages("test", 10, { apiBase: "http://localhost:8787" });
+			expect.fail("should have thrown");
+		} catch (e) {
+			expect(e).toBeInstanceOf(SearchApiError);
+			expect((e as SearchApiError).status).toBe(429);
+			expect((e as SearchApiError).retryAfter).toBe(30);
+		}
+	});
+
+	it("throws SearchApiError on 429 even if body parse fails", async () => {
+		globalThis.fetch = vi.fn().mockResolvedValue({
+			ok: false,
+			status: 429,
+			json: () => Promise.reject(new Error("invalid json")),
+		});
+
+		try {
+			await searchPassages("test", 10, { apiBase: "http://localhost:8787" });
+			expect.fail("should have thrown");
+		} catch (e) {
+			expect(e).toBeInstanceOf(SearchApiError);
+			expect((e as SearchApiError).status).toBe(429);
+			expect((e as SearchApiError).retryAfter).toBeUndefined();
+		}
 	});
 });

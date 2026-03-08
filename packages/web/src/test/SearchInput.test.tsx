@@ -1,8 +1,10 @@
 import { fireEvent, render, screen } from "@solidjs/testing-library";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SearchInput } from "../components/SearchInput.js";
+import { SearchApiError } from "../lib/api.js";
 
-vi.mock("../lib/api.js", () => ({
+vi.mock("../lib/api.js", async (importOriginal) => ({
+	...(await importOriginal<typeof import("../lib/api.js")>()),
 	searchPassages: vi.fn().mockResolvedValue({
 		results: [
 			{
@@ -36,6 +38,11 @@ describe("SearchInput", () => {
 	it("renders a textarea", () => {
 		render(() => <SearchInput />);
 		expect(screen.getByRole("textbox")).toBeInTheDocument();
+	});
+
+	it("has an aria-live region for results", () => {
+		const { container } = render(() => <SearchInput />);
+		expect(container.querySelector("[aria-live='polite']")).toBeInTheDocument();
 	});
 
 	it("debounces search calls", async () => {
@@ -106,5 +113,37 @@ describe("SearchInput", () => {
 		await vi.advanceTimersByTimeAsync(0);
 
 		expect(screen.getByRole("alert")).toHaveTextContent("Search failed");
+	});
+
+	it("shows no-results message when search returns empty", async () => {
+		const { searchPassages } = await import("../lib/api.js");
+		vi.mocked(searchPassages).mockResolvedValueOnce({ results: [], count: 0, query: "obscure" });
+
+		render(() => <SearchInput />);
+
+		const input = screen.getByRole("textbox");
+		fireEvent.input(input, { target: { value: "obscure" } });
+
+		await vi.advanceTimersByTimeAsync(400);
+		await vi.advanceTimersByTimeAsync(0);
+
+		expect(screen.getByText("No passages found.")).toBeInTheDocument();
+	});
+
+	it("shows rate limit message on 429 response", async () => {
+		const { searchPassages } = await import("../lib/api.js");
+		vi.mocked(searchPassages).mockRejectedValueOnce(new SearchApiError(429, 30));
+
+		render(() => <SearchInput />);
+
+		const input = screen.getByRole("textbox");
+		fireEvent.input(input, { target: { value: "test" } });
+
+		await vi.advanceTimersByTimeAsync(400);
+		await vi.advanceTimersByTimeAsync(0);
+
+		expect(screen.getByRole("alert")).toHaveTextContent(
+			"Too many searches. Please wait 30 seconds.",
+		);
 	});
 });

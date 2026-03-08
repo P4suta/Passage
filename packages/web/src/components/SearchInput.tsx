@@ -1,5 +1,5 @@
 import { Show, createSignal, onCleanup } from "solid-js";
-import { searchPassages } from "../lib/api.js";
+import { SearchApiError, searchPassages } from "../lib/api.js";
 import type { SearchResult } from "../lib/types.js";
 import { ResultList } from "./ResultList.js";
 
@@ -10,6 +10,7 @@ export function SearchInput() {
 	const [results, setResults] = createSignal<SearchResult[]>([]);
 	const [loading, setLoading] = createSignal(false);
 	const [error, setError] = createSignal<string | null>(null);
+	const [hasSearched, setHasSearched] = createSignal(false);
 	let debounceTimer: ReturnType<typeof setTimeout>;
 	let abortController: AbortController | undefined;
 	onCleanup(() => {
@@ -25,6 +26,7 @@ export function SearchInput() {
 		if (text.trim().length === 0) {
 			setResults([]);
 			setError(null);
+			setHasSearched(false);
 			return;
 		}
 
@@ -39,10 +41,16 @@ export function SearchInput() {
 				setResults(response.results);
 			} catch (e) {
 				if (e instanceof DOMException && e.name === "AbortError") return;
-				setError("Search failed. Please try again.");
+				if (e instanceof SearchApiError && e.status === 429) {
+					const seconds = e.retryAfter ?? 60;
+					setError(`Too many searches. Please wait ${seconds} seconds.`);
+				} else {
+					setError("Search failed. Please try again.");
+				}
 				setResults([]);
 			} finally {
 				setLoading(false);
+				setHasSearched(true);
 			}
 		}, DEBOUNCE_MS);
 	}
@@ -57,15 +65,17 @@ export function SearchInput() {
 				rows={3}
 				aria-label="Search query"
 			/>
-			<Show when={loading()}>
-				<div class="loading-indicator" aria-label="Searching..." />
-			</Show>
-			<Show when={error()}>
-				<p class="error-message" role="alert">
-					{error()}
-				</p>
-			</Show>
-			<ResultList results={results()} />
+			<div aria-live="polite">
+				<Show when={loading()}>
+					<div class="loading-indicator" aria-label="Searching..." />
+				</Show>
+				<Show when={error()}>
+					<p class="error-message" role="alert">
+						{error()}
+					</p>
+				</Show>
+				<ResultList results={results()} hasSearched={hasSearched()} />
+			</div>
 		</div>
 	);
 }

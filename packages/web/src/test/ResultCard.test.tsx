@@ -36,6 +36,15 @@ describe("ResultCard", () => {
 		expect(screen.getByText(/Chapter 1/)).toBeInTheDocument();
 	});
 
+	it("hides year when year is 0", () => {
+		const noYearResult: SearchResult = {
+			...mockResult,
+			book: { ...mockResult.book, year: 0 },
+		};
+		render(() => <ResultCard result={noYearResult} index={0} />);
+		expect(screen.queryByText("(0)")).not.toBeInTheDocument();
+	});
+
 	it("displays score as percentage", () => {
 		render(() => <ResultCard result={mockResult} index={0} />);
 		expect(screen.getByText("85% match")).toBeInTheDocument();
