@@ -1,8 +1,10 @@
 import { fireEvent, render, screen } from "@solidjs/testing-library";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SearchInput } from "../components/SearchInput.js";
+import { SearchApiError } from "../lib/api.js";
 
-vi.mock("../lib/api.js", () => ({
+vi.mock("../lib/api.js", async (importOriginal) => ({
+	...(await importOriginal<typeof import("../lib/api.js")>()),
 	searchPassages: vi.fn().mockResolvedValue({
 		results: [
 			{
@@ -106,5 +108,20 @@ describe("SearchInput", () => {
 		await vi.advanceTimersByTimeAsync(0);
 
 		expect(screen.getByRole("alert")).toHaveTextContent("Search failed");
+	});
+
+	it("shows rate limit message on 429 response", async () => {
+		const { searchPassages } = await import("../lib/api.js");
+		vi.mocked(searchPassages).mockRejectedValueOnce(new SearchApiError(429, 30));
+
+		render(() => <SearchInput />);
+
+		const input = screen.getByRole("textbox");
+		fireEvent.input(input, { target: { value: "test" } });
+
+		await vi.advanceTimersByTimeAsync(400);
+		await vi.advanceTimersByTimeAsync(0);
+
+		expect(screen.getByRole("alert")).toHaveTextContent("Too many searches. Please wait 30 seconds.");
 	});
 });

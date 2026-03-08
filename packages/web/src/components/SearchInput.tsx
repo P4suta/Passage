@@ -1,5 +1,5 @@
 import { Show, createSignal, onCleanup } from "solid-js";
-import { searchPassages } from "../lib/api.js";
+import { SearchApiError, searchPassages } from "../lib/api.js";
 import type { SearchResult } from "../lib/types.js";
 import { ResultList } from "./ResultList.js";
 
@@ -39,7 +39,12 @@ export function SearchInput() {
 				setResults(response.results);
 			} catch (e) {
 				if (e instanceof DOMException && e.name === "AbortError") return;
-				setError("Search failed. Please try again.");
+				if (e instanceof SearchApiError && e.status === 429) {
+					const seconds = e.retryAfter ?? 60;
+					setError(`Too many searches. Please wait ${seconds} seconds.`);
+				} else {
+					setError("Search failed. Please try again.");
+				}
 				setResults([]);
 			} finally {
 				setLoading(false);
