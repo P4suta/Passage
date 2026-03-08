@@ -16,7 +16,7 @@ def _safe_name(s: str) -> str:
     return re.sub(r"[^a-z0-9-]", "", s.lower())
 
 
-def _create_s3_client(
+def create_s3_client(
     account_id: str,
     access_key_id: str,
     secret_access_key: str,
@@ -45,7 +45,7 @@ def delete_all_from_r2(
         account_id = account_id or os.environ["CF_ACCOUNT_ID"]
         access_key_id = access_key_id or os.environ["R2_ACCESS_KEY_ID"]
         secret_access_key = secret_access_key or os.environ["R2_SECRET_ACCESS_KEY"]
-        s3_client = _create_s3_client(account_id, access_key_id, secret_access_key)
+        s3_client = create_s3_client(account_id, access_key_id, secret_access_key)
 
     deleted = 0
     continuation_token = None
@@ -99,7 +99,7 @@ async def upload_to_r2(
         account_id = account_id or os.environ["CF_ACCOUNT_ID"]
         access_key_id = access_key_id or os.environ["R2_ACCESS_KEY_ID"]
         secret_access_key = secret_access_key or os.environ["R2_SECRET_ACCESS_KEY"]
-        s3_client = _create_s3_client(account_id, access_key_id, secret_access_key)
+        s3_client = create_s3_client(account_id, access_key_id, secret_access_key)
 
     safe_book_id = _safe_name(book_id)
     uploaded = 0

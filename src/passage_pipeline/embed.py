@@ -3,18 +3,12 @@ import os
 
 import httpx
 
-CF_API_BASE = "https://api.cloudflare.com/client/v4/accounts"
+from passage_pipeline._http import CF_API_BASE, MAX_RETRIES, RETRY_DELAY, is_retryable
+
 EMBEDDING_MODEL = "@cf/baai/bge-m3"
 MAX_TEXT_CHARS = 8_000  # Per-text truncation limit (~2k tokens, safe for BGE-M3)
 MAX_BATCH_CHARS = 30_000  # ~45k tokens at ~1.5 tok/char, under 60k token limit
 MAX_BATCH_SIZE = 50
-MAX_RETRIES = 5
-RETRY_DELAY = 3.0
-
-
-def _is_retryable(exc: httpx.HTTPStatusError) -> bool:
-    """Return True if the HTTP error is worth retrying (5xx or 429)."""
-    return exc.response.status_code >= 500 or exc.response.status_code == 429
 
 
 def _make_batches(texts: list[str]) -> list[list[str]]:
@@ -78,7 +72,7 @@ async def generate_embeddings(
                     all_embeddings.extend(result["result"]["data"])
                     break
                 except httpx.HTTPStatusError as e:
-                    if not _is_retryable(e) or attempt == MAX_RETRIES - 1:
+                    if not is_retryable(e) or attempt == MAX_RETRIES - 1:
                         raise
                     await asyncio.sleep(RETRY_DELAY * (attempt + 1))
                 except httpx.TransportError:
