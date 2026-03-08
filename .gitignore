@@ -1,0 +1,53 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+
+# Virtual environment
+.venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Environment variables
+.env
+.env.local
+
+# Secrets / credentials
+*.pem
+*.key
+*.p12
+*.pfx
+*.credentials
+*.secret
+.env.*
+!.env.example
+
+# Design documents / internal docs (originals)
+docs/design/
+docs/internal/
+*.draft.md
+
+# Runtime data
+data/
+
+# Node.js
+node_modules/
+
+# Cloudflare
+.wrangler/
+
+# Astro
+.astro/
+
+# Build output
+dist/
+
+# OS
+.DS_Store
+Thumbs.db
