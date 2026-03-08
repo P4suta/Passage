@@ -39,4 +39,5 @@ markers = [
 [dependency-groups]
 dev = [
     "moto>=5.1.21",
+    "pytest-asyncio>=1.3.0",
 ]

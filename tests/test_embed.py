@@ -52,19 +52,21 @@ class TestMakeBatches:
 
 class TestGenerateEmbeddings:
     @respx.mock
-    def test_single_batch(self):
+    @pytest.mark.asyncio
+    async def test_single_batch(self):
         texts = ["hello world", "goodbye world"]
         respx.post(url__eq=API_URL).mock(
             return_value=httpx.Response(
                 200, json=_mock_embedding_response(1024, 2)
             )
         )
-        result = generate_embeddings(texts, ACCOUNT_ID, API_TOKEN)
+        result = await generate_embeddings(texts, ACCOUNT_ID, API_TOKEN)
         assert len(result) == 2
         assert len(result[0]) == 1024
 
     @respx.mock
-    def test_multiple_batches(self):
+    @pytest.mark.asyncio
+    async def test_multiple_batches(self):
         texts = [f"text {i}" for i in range(MAX_BATCH_SIZE + 10)]
         route = respx.post(url__eq=API_URL).mock(
             side_effect=[
@@ -76,24 +78,26 @@ class TestGenerateEmbeddings:
                 ),
             ]
         )
-        result = generate_embeddings(texts, ACCOUNT_ID, API_TOKEN)
+        result = await generate_embeddings(texts, ACCOUNT_ID, API_TOKEN)
         assert len(result) == MAX_BATCH_SIZE + 10
         assert route.call_count == 2
 
     @respx.mock
-    def test_request_payload(self):
+    @pytest.mark.asyncio
+    async def test_request_payload(self):
         texts = ["test text"]
         route = respx.post(url__eq=API_URL).mock(
             return_value=httpx.Response(
                 200, json=_mock_embedding_response(1024, 1)
             )
         )
-        generate_embeddings(texts, ACCOUNT_ID, API_TOKEN)
+        await generate_embeddings(texts, ACCOUNT_ID, API_TOKEN)
         request = route.calls[0].request
         assert request.headers["authorization"] == f"Bearer {API_TOKEN}"
 
     @respx.mock
-    def test_retry_on_error(self):
+    @pytest.mark.asyncio
+    async def test_retry_on_error(self):
         texts = ["text"]
         route = respx.post(url__eq=API_URL).mock(
             side_effect=[
@@ -103,26 +107,29 @@ class TestGenerateEmbeddings:
                 ),
             ]
         )
-        result = generate_embeddings(texts, ACCOUNT_ID, API_TOKEN)
+        result = await generate_embeddings(texts, ACCOUNT_ID, API_TOKEN)
         assert len(result) == 1
         assert route.call_count == 2
 
     @respx.mock
-    def test_max_retries_exceeded(self):
+    @pytest.mark.asyncio
+    async def test_max_retries_exceeded(self):
         texts = ["text"]
         respx.post(url__eq=API_URL).mock(
             return_value=httpx.Response(500)
         )
         with pytest.raises(httpx.HTTPStatusError):
-            generate_embeddings(texts, ACCOUNT_ID, API_TOKEN)
+            await generate_embeddings(texts, ACCOUNT_ID, API_TOKEN)
 
     @respx.mock
-    def test_empty_input(self):
-        result = generate_embeddings([], ACCOUNT_ID, API_TOKEN)
+    @pytest.mark.asyncio
+    async def test_empty_input(self):
+        result = await generate_embeddings([], ACCOUNT_ID, API_TOKEN)
         assert result == []
 
     @respx.mock
-    def test_env_fallback(self, monkeypatch):
+    @pytest.mark.asyncio
+    async def test_env_fallback(self, monkeypatch):
         monkeypatch.setenv("CF_ACCOUNT_ID", ACCOUNT_ID)
         monkeypatch.setenv("CF_API_TOKEN", API_TOKEN)
         texts = ["text"]
@@ -131,5 +138,5 @@ class TestGenerateEmbeddings:
                 200, json=_mock_embedding_response(1024, 1)
             )
         )
-        result = generate_embeddings(texts)
+        result = await generate_embeddings(texts)
         assert len(result) == 1

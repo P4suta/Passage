@@ -1,4 +1,4 @@
-from passage_pipeline.chunk import chunk_book, MIN_CHUNK_CHARS, MAX_CHUNK_CHARS
+from passage_pipeline.chunk import chunk_book, _split_long_text, MIN_CHUNK_CHARS, MAX_CHUNK_CHARS
 from passage_pipeline.models import Chapter, ExtractedBook
 
 
@@ -111,3 +111,58 @@ class TestChunkBook:
         book = _make_book([Chapter(title="Ch1", text=text, index=0)])
         chunks = chunk_book(book)
         assert chunks == []
+
+    def test_long_paragraph_split_at_sentence_boundary(self):
+        """A paragraph exceeding MAX_CHUNK_CHARS is split at sentence boundaries."""
+        sentence = "This is a sentence. "
+        # Build a paragraph that exceeds MAX_CHUNK_CHARS
+        repeat = (MAX_CHUNK_CHARS // len(sentence)) + 5
+        long_para = sentence * repeat
+        assert len(long_para) > MAX_CHUNK_CHARS
+
+        book = _make_book([Chapter(title="Ch1", text=long_para, index=0)])
+        chunks = chunk_book(book)
+
+        assert len(chunks) >= 2
+        for c in chunks:
+            assert len(c.text) <= MAX_CHUNK_CHARS
+
+    def test_long_paragraph_no_sentence_boundary_splits_at_space(self):
+        """Long paragraph without sentence boundaries splits at word boundary."""
+        # Words joined by spaces, no period/!/? followed by space
+        long_para = ("word " * (MAX_CHUNK_CHARS // 5 + 100)).strip()
+        assert len(long_para) > MAX_CHUNK_CHARS
+
+        book = _make_book([Chapter(title="Ch1", text=long_para, index=0)])
+        chunks = chunk_book(book)
+
+        assert len(chunks) >= 2
+        for c in chunks:
+            assert len(c.text) <= MAX_CHUNK_CHARS
+
+
+class TestSplitLongText:
+    def test_short_text_unchanged(self):
+        assert _split_long_text("hello", 100) == ["hello"]
+
+    def test_splits_at_sentence_boundary(self):
+        text = "First sentence. Second sentence. Third sentence."
+        fragments = _split_long_text(text, 35)
+        assert len(fragments) >= 2
+        # All fragments should be within limit
+        for f in fragments:
+            assert len(f) <= 35
+
+    def test_splits_at_space_when_no_sentence_boundary(self):
+        text = "word " * 100
+        text = text.strip()
+        fragments = _split_long_text(text, 50)
+        assert len(fragments) >= 2
+        for f in fragments:
+            assert len(f) <= 50
+
+    def test_hard_split_no_spaces(self):
+        text = "a" * 200
+        fragments = _split_long_text(text, 50)
+        # Should still split (hard cut at max_chars)
+        assert len(fragments) >= 2

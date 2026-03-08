@@ -1,14 +1,20 @@
+import asyncio
 import os
-import time
 
 import httpx
 
 CF_API_BASE = "https://api.cloudflare.com/client/v4/accounts"
 EMBEDDING_MODEL = "@cf/baai/bge-m3"
-MAX_BATCH_CHARS = 40_000  # ~10k tokens safety margin under 60k token limit
+MAX_TEXT_CHARS = 8_000  # Per-text truncation limit (~2k tokens, safe for BGE-M3)
+MAX_BATCH_CHARS = 30_000  # ~45k tokens at ~1.5 tok/char, under 60k token limit
 MAX_BATCH_SIZE = 50
-MAX_RETRIES = 3
-RETRY_DELAY = 2.0
+MAX_RETRIES = 5
+RETRY_DELAY = 3.0
+
+
+def _is_retryable(exc: httpx.HTTPStatusError) -> bool:
+    """Return True if the HTTP error is worth retrying (5xx or 429)."""
+    return exc.response.status_code >= 500 or exc.response.status_code == 429
 
 
 def _make_batches(texts: list[str]) -> list[list[str]]:
@@ -35,10 +41,12 @@ def _make_batches(texts: list[str]) -> list[list[str]]:
     return batches
 
 
-def generate_embeddings(
+async def generate_embeddings(
     texts: list[str],
     account_id: str | None = None,
     api_token: str | None = None,
+    *,
+    client: httpx.AsyncClient | None = None,
 ) -> list[list[float]]:
     """Generate embeddings via Cloudflare Workers AI API."""
     account_id = account_id or os.environ["CF_ACCOUNT_ID"]
@@ -47,27 +55,40 @@ def generate_embeddings(
     url = f"{CF_API_BASE}/{account_id}/ai/run/{EMBEDDING_MODEL}"
     headers = {"Authorization": f"Bearer {api_token}"}
 
+    texts = [t[:MAX_TEXT_CHARS] for t in texts]
     all_embeddings: list[list[float]] = []
     batches = _make_batches(texts)
 
-    for batch in batches:
-        for attempt in range(MAX_RETRIES):
-            try:
-                resp = httpx.post(
-                    url,
-                    headers=headers,
-                    json={"text": batch},
-                    timeout=120,
-                )
-                resp.raise_for_status()
-                result = resp.json()
-                all_embeddings.extend(result["result"]["data"])
-                break
-            except (httpx.HTTPStatusError, httpx.TransportError):
-                if attempt == MAX_RETRIES - 1:
-                    raise
-                time.sleep(RETRY_DELAY * (attempt + 1))
+    own_client = client is None
+    if own_client:
+        client = httpx.AsyncClient()
 
-        print(f"  Embedded {len(all_embeddings)}/{len(texts)} chunks")
+    try:
+        for batch in batches:
+            for attempt in range(MAX_RETRIES):
+                try:
+                    resp = await client.post(
+                        url,
+                        headers=headers,
+                        json={"text": batch},
+                        timeout=120,
+                    )
+                    resp.raise_for_status()
+                    result = resp.json()
+                    all_embeddings.extend(result["result"]["data"])
+                    break
+                except httpx.HTTPStatusError as e:
+                    if not _is_retryable(e) or attempt == MAX_RETRIES - 1:
+                        raise
+                    await asyncio.sleep(RETRY_DELAY * (attempt + 1))
+                except httpx.TransportError:
+                    if attempt == MAX_RETRIES - 1:
+                        raise
+                    await asyncio.sleep(RETRY_DELAY * (attempt + 1))
+
+            print(f"  Embedded {len(all_embeddings)}/{len(texts)} chunks")
+    finally:
+        if own_client:
+            await client.aclose()
 
     return all_embeddings

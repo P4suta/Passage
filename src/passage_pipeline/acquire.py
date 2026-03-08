@@ -72,12 +72,27 @@ def fetch_catalog(url: str = OPDS_URL) -> list[CatalogEntry]:
     return entries
 
 
-def download_epub(url: str, output_path: Path) -> None:
+async def download_epub(
+    url: str,
+    output_path: Path,
+    *,
+    client: httpx.AsyncClient | None = None,
+) -> None:
     """Download an EPUB file, skipping if already exists."""
     if output_path.exists():
         return
 
-    resp = httpx.get(url, auth=_get_auth(), follow_redirects=True, timeout=60)
-    resp.raise_for_status()
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_bytes(resp.content)
+    own_client = client is None
+    if own_client:
+        client = httpx.AsyncClient()
+
+    try:
+        resp = await client.get(
+            url, auth=_get_auth(), follow_redirects=True, timeout=60,
+        )
+        resp.raise_for_status()
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_bytes(resp.content)
+    finally:
+        if own_client:
+            await client.aclose()
