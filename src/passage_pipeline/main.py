@@ -2,6 +2,7 @@ import argparse
 import os
 import sys
 from pathlib import Path
+from urllib.parse import urlparse
 
 from passage_pipeline.acquire import fetch_catalog, download_epub, OUTPUT_DIR
 from passage_pipeline.extract import extract_book
@@ -46,7 +47,7 @@ def run_pipeline(
         print(f"\n[{i + 1}/{len(catalog)}] {book_name}")
 
         # Download
-        filename = entry.epub_url.split("/")[-1]
+        filename = Path(urlparse(entry.epub_url).path).name
         epub_path = output_dir / filename
         print("  Downloading EPUB...")
         download_epub(entry.epub_url, epub_path)
