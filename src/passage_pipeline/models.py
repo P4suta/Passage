@@ -2,11 +2,18 @@ import re
 from dataclasses import dataclass, field
 
 
-def slugify(text: str) -> str:
-    """Convert text to a URL-friendly slug."""
+def slugify(text: str, max_length: int = 58) -> str:
+    """Convert text to a URL-friendly slug.
+
+    max_length defaults to 58 so that chunk IDs ("{slug}:{index:05d}")
+    stay within the Vectorize 64-byte limit.
+    """
     slug = text.lower().strip()
     slug = re.sub(r"[^a-z0-9]+", "-", slug)
-    return slug.strip("-")
+    slug = slug.strip("-")
+    if len(slug) > max_length:
+        slug = slug[:max_length].rstrip("-")
+    return slug
 
 
 @dataclass
