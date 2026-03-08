@@ -2,7 +2,12 @@ import httpx
 import pytest
 import respx
 
-from passage_pipeline.embed import generate_embeddings, BATCH_SIZE
+from passage_pipeline.embed import (
+    generate_embeddings,
+    _make_batches,
+    MAX_BATCH_SIZE,
+    MAX_BATCH_CHARS,
+)
 
 
 def _mock_embedding_response(dim: int, count: int) -> dict:
@@ -17,6 +22,32 @@ def _mock_embedding_response(dim: int, count: int) -> dict:
 ACCOUNT_ID = "test-account"
 API_TOKEN = "test-token"
 API_URL = f"https://api.cloudflare.com/client/v4/accounts/{ACCOUNT_ID}/ai/run/@cf/baai/bge-m3"
+
+
+class TestMakeBatches:
+    def test_empty(self):
+        assert _make_batches([]) == []
+
+    def test_single_batch(self):
+        texts = ["hello", "world"]
+        batches = _make_batches(texts)
+        assert len(batches) == 1
+        assert batches[0] == texts
+
+    def test_splits_by_count(self):
+        texts = [f"t{i}" for i in range(MAX_BATCH_SIZE + 10)]
+        batches = _make_batches(texts)
+        assert len(batches) == 2
+        assert len(batches[0]) == MAX_BATCH_SIZE
+        assert len(batches[1]) == 10
+
+    def test_splits_by_chars(self):
+        # Each text is large enough that 2 texts exceed MAX_BATCH_CHARS
+        big_text = "a" * (MAX_BATCH_CHARS // 2 + 1)
+        texts = [big_text, big_text, big_text]
+        batches = _make_batches(texts)
+        assert len(batches) == 3
+        assert all(len(b) == 1 for b in batches)
 
 
 class TestGenerateEmbeddings:
@@ -34,11 +65,11 @@ class TestGenerateEmbeddings:
 
     @respx.mock
     def test_multiple_batches(self):
-        texts = [f"text {i}" for i in range(BATCH_SIZE + 10)]
+        texts = [f"text {i}" for i in range(MAX_BATCH_SIZE + 10)]
         route = respx.post(url__eq=API_URL).mock(
             side_effect=[
                 httpx.Response(
-                    200, json=_mock_embedding_response(1024, BATCH_SIZE)
+                    200, json=_mock_embedding_response(1024, MAX_BATCH_SIZE)
                 ),
                 httpx.Response(
                     200, json=_mock_embedding_response(1024, 10)
@@ -46,7 +77,7 @@ class TestGenerateEmbeddings:
             ]
         )
         result = generate_embeddings(texts, ACCOUNT_ID, API_TOKEN)
-        assert len(result) == BATCH_SIZE + 10
+        assert len(result) == MAX_BATCH_SIZE + 10
         assert route.call_count == 2
 
     @respx.mock

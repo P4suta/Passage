@@ -9,6 +9,7 @@ dependencies = [
     "ebooklib>=0.18",
     "beautifulsoup4>=4.12",
     "lxml>=5.0",
+    "boto3>=1.42.63",
     "python-dotenv>=1.2.2",
 ]
 
@@ -33,4 +34,9 @@ filterwarnings = [
 ]
 markers = [
     "integration: tests that access external services (deselect with '-m \"not integration\"')",
+]
+
+[dependency-groups]
+dev = [
+    "moto>=5.1.21",
 ]

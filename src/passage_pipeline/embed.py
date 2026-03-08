@@ -5,9 +5,34 @@ import httpx
 
 CF_API_BASE = "https://api.cloudflare.com/client/v4/accounts"
 EMBEDDING_MODEL = "@cf/baai/bge-m3"
-BATCH_SIZE = 50
+MAX_BATCH_CHARS = 40_000  # ~10k tokens safety margin under 60k token limit
+MAX_BATCH_SIZE = 50
 MAX_RETRIES = 3
 RETRY_DELAY = 2.0
+
+
+def _make_batches(texts: list[str]) -> list[list[str]]:
+    """Split texts into batches respecting both item count and total character limits."""
+    batches: list[list[str]] = []
+    current: list[str] = []
+    current_chars = 0
+
+    for text in texts:
+        text_len = len(text)
+        if current and (
+            len(current) >= MAX_BATCH_SIZE
+            or current_chars + text_len > MAX_BATCH_CHARS
+        ):
+            batches.append(current)
+            current = []
+            current_chars = 0
+        current.append(text)
+        current_chars += text_len
+
+    if current:
+        batches.append(current)
+
+    return batches
 
 
 def generate_embeddings(
@@ -23,10 +48,9 @@ def generate_embeddings(
     headers = {"Authorization": f"Bearer {api_token}"}
 
     all_embeddings: list[list[float]] = []
+    batches = _make_batches(texts)
 
-    for i in range(0, len(texts), BATCH_SIZE):
-        batch = texts[i : i + BATCH_SIZE]
-
+    for batch in batches:
         for attempt in range(MAX_RETRIES):
             try:
                 resp = httpx.post(

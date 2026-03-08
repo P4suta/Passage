@@ -11,7 +11,7 @@ index_name = "passage-index"
 
 [[kv_namespaces]]
 binding = "CACHE"
-id = "<KV_NAMESPACE_ID>"
+id = "8ef35f27790e4ab0a4d8932ff344126a"
 
 [[r2_buckets]]
 binding = "TEXTS"
