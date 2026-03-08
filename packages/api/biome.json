@@ -1,0 +1,31 @@
+{
+	"$schema": "https://biomejs.dev/schemas/1.9.4/schema.json",
+	"formatter": {
+		"indentStyle": "tab",
+		"lineWidth": 100
+	},
+	"linter": {
+		"enabled": true,
+		"rules": {
+			"recommended": true,
+			"suspicious": {
+				"noExplicitAny": "off"
+			}
+		}
+	},
+	"overrides": [
+		{
+			"include": ["test/**"],
+			"linter": {
+				"rules": {
+					"suspicious": {
+						"noExplicitAny": "off"
+					}
+				}
+			}
+		}
+	],
+	"organizeImports": {
+		"enabled": true
+	}
+}

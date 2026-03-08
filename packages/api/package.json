@@ -1,0 +1,27 @@
+{
+	"name": "passage-api",
+	"version": "0.1.0",
+	"private": true,
+	"scripts": {
+		"dev": "wrangler dev",
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"typecheck": "tsc --noEmit",
+		"check": "biome check .",
+		"format": "biome format --write .",
+		"deploy": "wrangler deploy"
+	},
+	"dependencies": {
+		"@hono/zod-openapi": "^0.18.4",
+		"hono": "^4.7.6",
+		"zod": "^3.24.3"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^1.9.4",
+		"@cloudflare/vitest-pool-workers": "~0.8.0",
+		"@cloudflare/workers-types": "^4.20250327.0",
+		"typescript": "^5.8.2",
+		"vitest": "~2.1.9",
+		"wrangler": "^4.8.0"
+	}
+}
