@@ -1,0 +1,14 @@
+---
+import { SearchInput } from "../components/SearchInput";
+import BaseLayout from "../layouts/BaseLayout.astro";
+---
+
+<BaseLayout>
+	<main>
+		<div class="hero">
+			<h1>Passage</h1>
+			<p>Discover literature through meaning. Describe a feeling, a scene, a mood.</p>
+		</div>
+		<SearchInput client:load />
+	</main>
+</BaseLayout>
