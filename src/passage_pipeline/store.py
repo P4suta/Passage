@@ -1,7 +1,9 @@
+import asyncio
 import os
 import re
 
 import boto3
+from botocore.config import Config
 
 from passage_pipeline.models import Chapter
 
@@ -26,10 +28,59 @@ def _create_s3_client(
         aws_access_key_id=access_key_id,
         aws_secret_access_key=secret_access_key,
         region_name="auto",
+        config=Config(max_pool_connections=25),
     )
 
 
-def upload_to_r2(
+def delete_all_from_r2(
+    account_id: str | None = None,
+    access_key_id: str | None = None,
+    secret_access_key: str | None = None,
+    bucket_name: str = "passage-texts",
+    *,
+    s3_client=None,
+) -> int:
+    """Delete all objects from an R2 bucket. Returns the number of objects deleted."""
+    if s3_client is None:
+        account_id = account_id or os.environ["CF_ACCOUNT_ID"]
+        access_key_id = access_key_id or os.environ["R2_ACCESS_KEY_ID"]
+        secret_access_key = secret_access_key or os.environ["R2_SECRET_ACCESS_KEY"]
+        s3_client = _create_s3_client(account_id, access_key_id, secret_access_key)
+
+    deleted = 0
+    continuation_token = None
+
+    while True:
+        kwargs = {"Bucket": bucket_name, "MaxKeys": 1000}
+        if continuation_token:
+            kwargs["ContinuationToken"] = continuation_token
+
+        response = s3_client.list_objects_v2(**kwargs)
+        contents = response.get("Contents", [])
+        if not contents:
+            break
+
+        objects = [{"Key": obj["Key"]} for obj in contents]
+        del_resp = s3_client.delete_objects(
+            Bucket=bucket_name,
+            Delete={"Objects": objects},
+        )
+        errors = del_resp.get("Errors", [])
+        if errors:
+            failed_keys = [e["Key"] for e in errors]
+            raise RuntimeError(
+                f"Failed to delete {len(errors)} objects: {failed_keys[:5]}"
+            )
+        deleted += len(objects)
+
+        if not response.get("IsTruncated"):
+            break
+        continuation_token = response.get("NextContinuationToken")
+
+    return deleted
+
+
+async def upload_to_r2(
     chapters: list[Chapter],
     book_id: str,
     account_id: str | None = None,
@@ -64,7 +115,8 @@ def upload_to_r2(
         key = f"{safe_book_id}/{safe_chapter}.txt"
 
         if not dry_run:
-            s3_client.put_object(
+            await asyncio.to_thread(
+                s3_client.put_object,
                 Bucket=bucket_name,
                 Key=key,
                 Body=chapter.text.encode("utf-8"),

@@ -83,12 +83,13 @@ class TestAuth:
         assert "authorization" in request.headers
 
     @respx.mock
-    def test_download_epub_sends_auth_header(self, monkeypatch, tmp_path: Path):
+    @pytest.mark.asyncio
+    async def test_download_epub_sends_auth_header(self, monkeypatch, tmp_path: Path):
         monkeypatch.setenv("SE_EMAIL", "test@example.com")
         route = respx.get(url__eq="https://example.com/book.epub").mock(
             return_value=httpx.Response(200, content=b"PK\x03\x04data")
         )
-        download_epub("https://example.com/book.epub", tmp_path / "book.epub")
+        await download_epub("https://example.com/book.epub", tmp_path / "book.epub")
         request = route.calls[0].request
         assert "authorization" in request.headers
 
@@ -170,32 +171,35 @@ class TestFetchCatalog:
 
 class TestDownloadEpub:
     @respx.mock
-    def test_downloads_file(self, tmp_path: Path):
+    @pytest.mark.asyncio
+    async def test_downloads_file(self, tmp_path: Path):
         content = b"PK\x03\x04fake epub content"
         respx.get(url__eq="https://example.com/book.epub").mock(
             return_value=httpx.Response(200, content=content)
         )
         output = tmp_path / "book.epub"
-        download_epub("https://example.com/book.epub", output)
+        await download_epub("https://example.com/book.epub", output)
         assert output.read_bytes() == content
 
     @respx.mock
-    def test_skips_existing_file(self, tmp_path: Path):
+    @pytest.mark.asyncio
+    async def test_skips_existing_file(self, tmp_path: Path):
         output = tmp_path / "book.epub"
         output.write_bytes(b"existing")
         route = respx.get(url__eq="https://example.com/book.epub").mock(
             return_value=httpx.Response(200, content=b"new")
         )
-        download_epub("https://example.com/book.epub", output)
+        await download_epub("https://example.com/book.epub", output)
         assert output.read_bytes() == b"existing"
         assert route.call_count == 0
 
     @respx.mock
-    def test_creates_parent_dirs(self, tmp_path: Path):
+    @pytest.mark.asyncio
+    async def test_creates_parent_dirs(self, tmp_path: Path):
         content = b"PK\x03\x04data"
         respx.get(url__eq="https://example.com/book.epub").mock(
             return_value=httpx.Response(200, content=content)
         )
         output = tmp_path / "sub" / "dir" / "book.epub"
-        download_epub("https://example.com/book.epub", output)
+        await download_epub("https://example.com/book.epub", output)
         assert output.exists()
