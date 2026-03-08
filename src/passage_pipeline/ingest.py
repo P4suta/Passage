@@ -68,7 +68,7 @@ def delete_all_from_vectorize(
                     del_resp.raise_for_status()
                     break
                 except httpx.HTTPStatusError as e:
-                    if not _is_retryable(e) or attempt == MAX_RETRIES - 1:
+                    if not is_retryable(e) or attempt == MAX_RETRIES - 1:
                         raise
                     time.sleep(RETRY_DELAY * (attempt + 1))
                 except httpx.TransportError:
@@ -142,7 +142,7 @@ async def upload_to_vectorize(
                     resp.raise_for_status()
                     break
                 except httpx.HTTPStatusError as e:
-                    if not _is_retryable(e) or attempt == MAX_RETRIES - 1:
+                    if not is_retryable(e) or attempt == MAX_RETRIES - 1:
                         raise
                     await asyncio.sleep(RETRY_DELAY * (attempt + 1))
                 except httpx.TransportError:
