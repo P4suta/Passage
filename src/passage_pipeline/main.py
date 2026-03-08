@@ -1,6 +1,10 @@
 import argparse
 import os
 import sys
+
+from dotenv import load_dotenv
+
+load_dotenv()
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -9,6 +13,7 @@ from passage_pipeline.extract import extract_book
 from passage_pipeline.chunk import chunk_book
 from passage_pipeline.embed import generate_embeddings
 from passage_pipeline.ingest import upload_to_vectorize
+from passage_pipeline.store import upload_to_r2
 
 
 def run_pipeline(
@@ -20,13 +25,16 @@ def run_pipeline(
     """Run the full preprocessing pipeline."""
     if not dry_run:
         missing = [
-            key for key in ("CF_ACCOUNT_ID", "CF_API_TOKEN")
+            key for key in (
+                "CF_ACCOUNT_ID", "CF_API_TOKEN",
+                "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY",
+            )
             if not os.environ.get(key)
         ]
         if missing:
             print(
                 f"Error: required environment variables not set: {', '.join(missing)}\n"
-                "Set them in .env or export them. See .env.example for details.",
+                "Copy .env.example to .env and fill in the values.",
                 file=sys.stderr,
             )
             sys.exit(1)
@@ -59,7 +67,12 @@ def run_pipeline(
             print("  Skipping: no chapters found")
             continue
 
-        # Stage 3: Chunk
+        # Stage 3: Store chapter texts in R2
+        print("  Uploading chapter texts to R2..." if not dry_run else "  [DRY RUN] Counting chapters for R2...")
+        uploaded = upload_to_r2(extracted.chapters, extracted.book_id, dry_run=dry_run)
+        print(f"  {'Uploaded' if not dry_run else 'Would upload'} {uploaded} chapters to R2")
+
+        # Stage 4: Chunk
         print("  Chunking...")
         chunks = chunk_book(extracted)
         print(f"  Created {len(chunks)} chunks")
@@ -68,12 +81,12 @@ def run_pipeline(
             print("  [DRY RUN] Skipping embedding and ingestion")
             continue
 
-        # Stage 4: Embed
+        # Stage 5: Embed
         print("  Generating embeddings...")
         texts = [c.text for c in chunks]
         embeddings = generate_embeddings(texts)
 
-        # Stage 5: Ingest
+        # Stage 6: Ingest
         print("  Uploading to Vectorize...")
         upload_to_vectorize(chunks, embeddings)
 

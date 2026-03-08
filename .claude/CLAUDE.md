@@ -9,9 +9,9 @@ Passage is a Python project (v0.1.0) managed with **uv**. Python >=3.12 required
 ## Common Commands
 
 ```bash
-uv sync              # Install dependencies / create .venv
-uv run main.py       # Run the application
-uv add <package>     # Add a dependency
+uv sync                                          # Install dependencies / create .venv
+uv run main.py                                   # Run the application (.env から環境変数を読み込み)
+uv add <package>                                 # Add a dependency
 ```
 
 ## 開発環境
@@ -127,7 +127,7 @@ test(auth): add unit tests for password hashing
 
 このリポジトリはGitHubで公開される。以下を厳守すること：
 
-- **APIキー・トークン・パスワード等の秘密情報をコードやコミットに含めない。** 環境変数（`.env`）経由で注入し、`.env.example` のみコミットする。
+- **APIキー・トークン・パスワード等の秘密情報をコードやコミットに含めない。** 環境変数は `.env` ファイルで管理する（`.env.example` をコピーして値を設定）。
 - **技術設計書の原本**（`docs/design/`、`docs/internal/`、`*.draft.md`）はGitで追跡しない。`.gitignore` で除外済み。
 - 新しいファイル種別や機密情報を扱う場面では、`.gitignore` への追加を検討し、必要に応じてユーザーに確認すること。
 - `git add` 前に、ステージ対象に機密ファイルが含まれていないか注意すること。
@@ -142,6 +142,7 @@ src/passage_pipeline/
 ├── acquire.py    # OPDS catalog fetch + EPUB download
 ├── extract.py    # EPUB → ExtractedBook (ebooklib + BeautifulSoup/lxml)
 ├── chunk.py      # ExtractedBook → TextChunk[] (paragraph-based splitting)
+├── store.py      # R2 chapter text upload (boto3, S3-compatible, dry-run対応)
 ├── embed.py      # Cloudflare Workers AI embedding generation
 ├── ingest.py     # Vectorize NDJSON batch upload
 └── main.py       # Pipeline orchestrator (CLI)
@@ -149,10 +150,12 @@ src/passage_pipeline/
 
 ### 実行方法
 
+環境変数は `.env` ファイルから `python-dotenv` で自動読み込みする。
+
 ```bash
-uv run main.py                    # 全書籍を処理
-uv run main.py --max-books 5      # 最大5冊のみ処理
-uv run main.py --dry-run          # embedding/ingest をスキップ
+uv run main.py                                   # 全書籍を処理（.env に環境変数を設定済み前提）
+uv run main.py --max-books 5                     # 最大5冊のみ処理
+uv run main.py --dry-run                         # dry-run（認証情報不要）
 ```
 
 ### テスト
@@ -164,7 +167,16 @@ uv run pytest tests/test_chunk.py # 個別テスト
 
 ### 環境変数
 
-`.env.example` を参照。`CF_ACCOUNT_ID` と `CF_API_TOKEN` が必要（embed/ingest時）。
+`.env.example` を参照。以下の環境変数が必要（embed/store/ingest時。`--dry-run` では不要）：
+
+- `CF_ACCOUNT_ID` — Cloudflare アカウント ID
+- `CF_API_TOKEN` — Cloudflare API トークン
+- `R2_ACCESS_KEY_ID` — R2 S3互換 API アクセスキー
+- `R2_SECRET_ACCESS_KEY` — R2 S3互換 API シークレットキー
+- `SE_EMAIL` — Standard Ebooks Patrons Circle メールアドレス（任意）
+- `PUBLIC_API_URL` — API の URL（ローカル開発時は `http://localhost:8787`）
+
+`.env.example` をコピーして `.env` を作成し、値を設定する。
 
 ### 設計方針
 

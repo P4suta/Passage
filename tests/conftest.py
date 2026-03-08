@@ -3,10 +3,7 @@ import tempfile
 from pathlib import Path
 
 import pytest
-from dotenv import load_dotenv
 from ebooklib import epub
-
-load_dotenv()
 
 
 def pytest_collection_modifyitems(config, items):
