@@ -1,3 +1,5 @@
+from dataclasses import replace
+
 from passage_pipeline.models import ExtractedBook, TextChunk
 
 MIN_CHUNK_CHARS = 80
@@ -81,16 +83,6 @@ def chunk_book(book: ExtractedBook) -> list[TextChunk]:
         elif buffer and chunks:
             # Too short — merge into previous chunk
             last = chunks[-1]
-            chunks[-1] = TextChunk(
-                chunk_id=last.chunk_id,
-                text=f"{last.text}\n\n{buffer}",
-                book_id=last.book_id,
-                title=last.title,
-                author=last.author,
-                year=last.year,
-                language=last.language,
-                chapter=last.chapter,
-                chunk_index=last.chunk_index,
-            )
+            chunks[-1] = replace(last, text=f"{last.text}\n\n{buffer}")
 
     return chunks

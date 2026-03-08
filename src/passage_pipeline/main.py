@@ -17,7 +17,7 @@ from passage_pipeline.chunk import chunk_book
 from passage_pipeline.embed import generate_embeddings
 from passage_pipeline.ingest import delete_all_from_vectorize, upload_to_vectorize
 from passage_pipeline.models import CatalogEntry
-from passage_pipeline.store import delete_all_from_r2, upload_to_r2, _create_s3_client
+from passage_pipeline.store import delete_all_from_r2, upload_to_r2, create_s3_client
 
 # Concurrency limits
 SEM_BOOK = 50
@@ -26,16 +26,12 @@ SEM_R2 = 20
 SEM_EMBED = 30
 SEM_INGEST = 10
 
+_REQUIRED_ENV_VARS = ("CF_ACCOUNT_ID", "CF_API_TOKEN", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY")
 
-def run_reset() -> None:
-    """Delete all data from R2 and Vectorize."""
-    missing = [
-        key for key in (
-            "CF_ACCOUNT_ID", "CF_API_TOKEN",
-            "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY",
-        )
-        if not os.environ.get(key)
-    ]
+
+def _check_env_vars() -> None:
+    """Exit with an error if required environment variables are missing."""
+    missing = [k for k in _REQUIRED_ENV_VARS if not os.environ.get(k)]
     if missing:
         print(
             f"Error: required environment variables not set: {', '.join(missing)}\n"
@@ -43,6 +39,11 @@ def run_reset() -> None:
             file=sys.stderr,
         )
         sys.exit(1)
+
+
+def run_reset() -> None:
+    """Delete all data from R2 and Vectorize."""
+    _check_env_vars()
 
     r2_ok, vec_ok = False, False
 
@@ -78,20 +79,7 @@ async def run_pipeline(
 ) -> None:
     """Run the full preprocessing pipeline."""
     if not dry_run:
-        missing = [
-            key for key in (
-                "CF_ACCOUNT_ID", "CF_API_TOKEN",
-                "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY",
-            )
-            if not os.environ.get(key)
-        ]
-        if missing:
-            print(
-                f"Error: required environment variables not set: {', '.join(missing)}\n"
-                "Copy .env.example to .env and fill in the values.",
-                file=sys.stderr,
-            )
-            sys.exit(1)
+        _check_env_vars()
 
     # Stage 1: Acquire (sync — one-time catalog fetch)
     print("Stage 1: Fetching OPDS catalog...")
@@ -114,7 +102,7 @@ async def run_pipeline(
     # Create shared S3 client once (skip for dry-run)
     s3_client = None
     if not dry_run:
-        s3_client = _create_s3_client(
+        s3_client = create_s3_client(
             os.environ["CF_ACCOUNT_ID"],
             os.environ["R2_ACCESS_KEY_ID"],
             os.environ["R2_SECRET_ACCESS_KEY"],

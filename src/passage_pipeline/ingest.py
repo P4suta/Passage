@@ -6,18 +6,11 @@ import time
 
 import httpx
 
+from passage_pipeline._http import CF_API_BASE, MAX_RETRIES, RETRY_DELAY, is_retryable
 from passage_pipeline.models import TextChunk
 
-CF_API_BASE = "https://api.cloudflare.com/client/v4/accounts"
 VECTORIZE_BATCH_SIZE = 1000
 VECTORIZE_DELETE_BATCH_SIZE = 100  # Cloudflare API limit for delete_by_ids
-MAX_RETRIES = 5
-RETRY_DELAY = 3.0
-
-
-def _is_retryable(exc: httpx.HTTPStatusError) -> bool:
-    """Return True if the HTTP error is worth retrying (5xx or 429)."""
-    return exc.response.status_code >= 500 or exc.response.status_code == 429
 
 
 def delete_all_from_vectorize(
@@ -48,7 +41,7 @@ def delete_all_from_vectorize(
                 resp.raise_for_status()
                 break
             except httpx.HTTPStatusError as e:
-                if not _is_retryable(e) or attempt == MAX_RETRIES - 1:
+                if not is_retryable(e) or attempt == MAX_RETRIES - 1:
                     raise
                 time.sleep(RETRY_DELAY * (attempt + 1))
             except httpx.TransportError:
