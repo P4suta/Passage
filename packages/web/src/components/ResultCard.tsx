@@ -1,3 +1,4 @@
+import { Show } from "solid-js";
 import type { SearchResult } from "../lib/types.js";
 
 interface ResultCardProps {
@@ -16,7 +17,9 @@ export function ResultCard(props: ResultCardProps) {
 			<div class="result-meta">
 				<span class="result-title">{props.result.book.title}</span>
 				<span>&mdash; {props.result.book.author}</span>
+				<Show when={props.result.book.year > 0}>
 				<span>({props.result.book.year})</span>
+			</Show>
 				<span>&middot; {props.result.chapter}</span>
 				<span class="result-score">{(props.result.score * 100).toFixed(0)}% match</span>
 			</div>
