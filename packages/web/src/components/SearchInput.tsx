@@ -62,6 +62,11 @@ export function SearchInput() {
 				placeholder="Describe a feeling, a scene, a mood..."
 				value={query()}
 				onInput={(e) => handleInput(e.currentTarget.value)}
+				onKeyDown={(e) => {
+					if (e.key === "Enter" && !e.shiftKey) {
+						e.preventDefault();
+					}
+				}}
 				rows={3}
 				aria-label="Search query"
 			/>
