@@ -1,4 +1,12 @@
+import re
 from dataclasses import dataclass, field
+
+
+def slugify(text: str) -> str:
+    """Convert text to a URL-friendly slug."""
+    slug = text.lower().strip()
+    slug = re.sub(r"[^a-z0-9]+", "-", slug)
+    return slug.strip("-")
 
 
 @dataclass

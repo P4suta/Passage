@@ -1,9 +1,15 @@
+from __future__ import annotations
+
 import asyncio
 import os
+from typing import TYPE_CHECKING
 
 import httpx
 
 from passage_pipeline._http import CF_API_BASE, MAX_RETRIES, RETRY_DELAY, is_retryable
+
+if TYPE_CHECKING:
+    from passage_pipeline._rate_limit import AsyncRateLimiter
 
 EMBEDDING_MODEL = "@cf/baai/bge-m3"
 MAX_TEXT_CHARS = 8_000  # Per-text truncation limit (~2k tokens, safe for BGE-M3)
@@ -41,6 +47,7 @@ async def generate_embeddings(
     api_token: str | None = None,
     *,
     client: httpx.AsyncClient | None = None,
+    rate_limiter: AsyncRateLimiter | None = None,
 ) -> list[list[float]]:
     """Generate embeddings via Cloudflare Workers AI API."""
     account_id = account_id or os.environ["CF_ACCOUNT_ID"]
@@ -59,6 +66,8 @@ async def generate_embeddings(
 
     try:
         for batch in batches:
+            if rate_limiter:
+                await rate_limiter.acquire()
             for attempt in range(MAX_RETRIES):
                 try:
                     resp = await client.post(

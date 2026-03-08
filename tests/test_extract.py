@@ -1,6 +1,7 @@
 from pathlib import Path
 
-from passage_pipeline.extract import extract_book, _slugify
+from passage_pipeline.extract import extract_book
+from passage_pipeline.models import slugify as _slugify
 
 
 class TestExtractBook:
@@ -17,8 +18,6 @@ class TestExtractBook:
 
     def test_chapters_extracted(self, minimal_epub: Path):
         book = extract_book(str(minimal_epub))
-        # Filter out nav chapter if present
-        content_chapters = [c for c in book.chapters if c.title != "Chapter {idx + 1}"]
         assert len(book.chapters) >= 2
         titles = [c.title for c in book.chapters]
         assert "Chapter 1" in titles
