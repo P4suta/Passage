@@ -49,7 +49,11 @@ describe("SearchInput", () => {
 
 		await vi.advanceTimersByTimeAsync(400);
 
-		expect(searchPassages).toHaveBeenCalledWith("hello");
+		expect(searchPassages).toHaveBeenCalledWith(
+			"hello",
+			10,
+			expect.objectContaining({ signal: expect.any(AbortSignal) }),
+		);
 	});
 
 	it("does not search on empty input", async () => {

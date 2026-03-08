@@ -19,9 +19,12 @@ describe("searchPassages", () => {
 			json: () => Promise.resolve(mockResponse),
 		});
 
-		const result = await searchPassages("lonely night", 5, "http://localhost:8787");
+		const result = await searchPassages("lonely night", 5, {
+			apiBase: "http://localhost:8787",
+		});
 		expect(globalThis.fetch).toHaveBeenCalledWith(
 			"http://localhost:8787/api/search?q=lonely+night&limit=5",
+			{ signal: undefined },
 		);
 		expect(result).toEqual(mockResponse);
 	});
@@ -32,6 +35,8 @@ describe("searchPassages", () => {
 			status: 500,
 		});
 
-		await expect(searchPassages("test", 10, "http://localhost:8787")).rejects.toThrow("HTTP 500");
+		await expect(searchPassages("test", 10, { apiBase: "http://localhost:8787" })).rejects.toThrow(
+			"HTTP 500",
+		);
 	});
 });

@@ -6,9 +6,9 @@ const API_BASE = import.meta.env.PUBLIC_API_URL;
 export async function searchPassages(
 	query: string,
 	limit = 10,
-	apiBase?: string,
+	options?: { apiBase?: string; signal?: AbortSignal },
 ): Promise<SearchResponse> {
-	const base = apiBase ?? API_BASE;
+	const base = options?.apiBase ?? API_BASE;
 
 	if (!base) {
 		return getMockSearchResponse(query);
@@ -18,7 +18,7 @@ export async function searchPassages(
 	url.searchParams.set("q", query);
 	url.searchParams.set("limit", String(limit));
 
-	const res = await fetch(url.toString());
+	const res = await fetch(url.toString(), { signal: options?.signal });
 	if (!res.ok) {
 		throw new Error(`Search failed: HTTP ${res.status}`);
 	}

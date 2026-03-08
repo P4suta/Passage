@@ -1,12 +1,18 @@
 import { createRoute, z } from "@hono/zod-openapi";
 import type { OpenAPIHono } from "@hono/zod-openapi";
 import type { SearchUseCase } from "../../application/search-use-case.js";
+import {
+	DEFAULT_LIMIT,
+	MAX_LIMIT,
+	MAX_QUERY_LENGTH,
+	MIN_LIMIT,
+} from "../../domain/model/search-query.js";
 
 const SearchQuerySchema = z.object({
 	q: z
 		.string()
 		.min(1, "Query must not be empty")
-		.max(500, "Query must not exceed 500 characters")
+		.max(MAX_QUERY_LENGTH, `Query must not exceed ${MAX_QUERY_LENGTH} characters`)
 		.openapi({
 			description: "Search query text",
 			example: "lonely night, yet strangely refreshing",
@@ -14,9 +20,9 @@ const SearchQuerySchema = z.object({
 	limit: z.coerce
 		.number()
 		.int()
-		.min(1)
-		.max(20)
-		.default(10)
+		.min(MIN_LIMIT)
+		.max(MAX_LIMIT)
+		.default(DEFAULT_LIMIT)
 		.openapi({ description: "Maximum number of results" }),
 });
 

@@ -13,18 +13,6 @@
 			}
 		}
 	},
-	"overrides": [
-		{
-			"include": ["test/**"],
-			"linter": {
-				"rules": {
-					"suspicious": {
-						"noExplicitAny": "off"
-					}
-				}
-			}
-		}
-	],
 	"organizeImports": {
 		"enabled": true
 	}

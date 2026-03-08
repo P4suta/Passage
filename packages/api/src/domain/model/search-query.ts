@@ -3,10 +3,10 @@ export interface SearchQuery {
 	readonly limit: number;
 }
 
-const MAX_QUERY_LENGTH = 500;
-const MIN_LIMIT = 1;
-const MAX_LIMIT = 20;
-const DEFAULT_LIMIT = 10;
+export const MAX_QUERY_LENGTH = 500;
+export const MIN_LIMIT = 1;
+export const MAX_LIMIT = 20;
+export const DEFAULT_LIMIT = 10;
 
 export function createSearchQuery(params: { text: string; limit?: number }): SearchQuery {
 	const trimmed = params.text.trim();

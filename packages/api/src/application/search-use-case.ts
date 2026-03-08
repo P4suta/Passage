@@ -8,6 +8,8 @@ import type { EmbeddingPort } from "../port/embedding-port.js";
 import type { VectorSearchPort } from "../port/vector-search-port.js";
 
 const CACHE_TTL_SECONDS = 3600;
+const FETCH_SIZE_MULTIPLIER = 3;
+const MAX_FETCH_SIZE = 50;
 
 export class SearchUseCase {
 	private readonly ranker = new ResultRanker();
@@ -27,7 +29,7 @@ export class SearchUseCase {
 
 		const queryVector = await this.embedding.embed(query.text);
 
-		const fetchSize = Math.min(query.limit * 3, 50);
+		const fetchSize = Math.min(query.limit * FETCH_SIZE_MULTIPLIER, MAX_FETCH_SIZE);
 		const matches = await this.vectorSearch.search(queryVector, fetchSize);
 
 		const results: SearchResult[] = matches.map((match) => {

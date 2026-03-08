@@ -11,11 +11,16 @@ export function SearchInput() {
 	const [loading, setLoading] = createSignal(false);
 	const [error, setError] = createSignal<string | null>(null);
 	let debounceTimer: ReturnType<typeof setTimeout>;
-	onCleanup(() => clearTimeout(debounceTimer));
+	let abortController: AbortController | undefined;
+	onCleanup(() => {
+		clearTimeout(debounceTimer);
+		abortController?.abort();
+	});
 
 	function handleInput(text: string) {
 		setQuery(text);
 		clearTimeout(debounceTimer);
+		abortController?.abort();
 
 		if (text.trim().length === 0) {
 			setResults([]);
@@ -24,12 +29,16 @@ export function SearchInput() {
 		}
 
 		debounceTimer = setTimeout(async () => {
+			abortController = new AbortController();
 			setLoading(true);
 			setError(null);
 			try {
-				const response = await searchPassages(text.trim());
+				const response = await searchPassages(text.trim(), 10, {
+					signal: abortController.signal,
+				});
 				setResults(response.results);
-			} catch {
+			} catch (e) {
+				if (e instanceof DOMException && e.name === "AbortError") return;
 				setError("Search failed. Please try again.");
 				setResults([]);
 			} finally {
