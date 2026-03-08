@@ -143,6 +143,7 @@ async def upload_to_vectorize(
                     break
                 except httpx.HTTPStatusError as e:
                     if not is_retryable(e) or attempt == MAX_RETRIES - 1:
+                        print(f"  Vectorize error: {e.response.text}", file=__import__('sys').stderr)
                         raise
                     await asyncio.sleep(RETRY_DELAY * (attempt + 1))
                 except httpx.TransportError:
