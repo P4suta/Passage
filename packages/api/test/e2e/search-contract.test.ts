@@ -43,7 +43,7 @@ describe("Search API contract", () => {
 		expect(res.status).toBe(200);
 		expect(res.headers.get("content-type")).toContain("application/json");
 
-		const body = await res.json();
+		const body = (await res.json()) as any;
 
 		// Top-level shape
 		expect(body).toHaveProperty("results");
@@ -88,7 +88,7 @@ describe("Search API contract", () => {
 		];
 		const { app } = createFullStack(matches);
 		const res = await app.request("/api/search?q=test");
-		const body = await res.json();
+		const body = (await res.json()) as any;
 
 		expect(body.count).toBe(body.results.length);
 	});
@@ -96,7 +96,7 @@ describe("Search API contract", () => {
 	it("query field echoes back the input", async () => {
 		const { app } = createFullStack();
 		const res = await app.request("/api/search?q=the+ocean+was+quiet");
-		const body = await res.json();
+		const body = (await res.json()) as any;
 
 		expect(body.query).toBe("the ocean was quiet");
 	});
@@ -120,7 +120,7 @@ describe("Search API contract", () => {
 		);
 		const { app } = createFullStack(matches);
 		const res = await app.request("/api/search?q=test&limit=3");
-		const body = await res.json();
+		const body = (await res.json()) as any;
 
 		expect(body.results.length).toBeLessThanOrEqual(3);
 		expect(body.count).toBeLessThanOrEqual(3);
@@ -139,7 +139,7 @@ describe("Search API contract", () => {
 		];
 		const { app } = createFullStack(matches);
 		const res = await app.request("/api/search?q=test");
-		const body = await res.json();
+		const body = (await res.json()) as any;
 
 		for (const result of body.results) {
 			expect(result.score).toBeGreaterThanOrEqual(0.3);
