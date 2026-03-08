@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import { SearchUseCase } from "../../src/application/search-use-case.js";
+import { createApp } from "../../src/interface/app.js";
 import type { CachePort } from "../../src/port/cache-port.js";
 import type { EmbeddingPort } from "../../src/port/embedding-port.js";
 import type { VectorSearchPort } from "../../src/port/vector-search-port.js";
-import { createApp } from "../../src/interface/app.js";
 import { createTestVectorMatch } from "../helpers.js";
 
 /**
