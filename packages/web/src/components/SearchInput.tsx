@@ -65,15 +65,17 @@ export function SearchInput() {
 				rows={3}
 				aria-label="Search query"
 			/>
-			<Show when={loading()}>
-				<div class="loading-indicator" aria-label="Searching..." />
-			</Show>
-			<Show when={error()}>
-				<p class="error-message" role="alert">
-					{error()}
-				</p>
-			</Show>
-			<ResultList results={results()} hasSearched={hasSearched()} />
+			<div aria-live="polite">
+				<Show when={loading()}>
+					<div class="loading-indicator" aria-label="Searching..." />
+				</Show>
+				<Show when={error()}>
+					<p class="error-message" role="alert">
+						{error()}
+					</p>
+				</Show>
+				<ResultList results={results()} hasSearched={hasSearched()} />
+			</div>
 		</div>
 	);
 }

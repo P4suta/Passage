@@ -18,8 +18,8 @@ export function ResultCard(props: ResultCardProps) {
 				<span class="result-title">{props.result.book.title}</span>
 				<span>&mdash; {props.result.book.author}</span>
 				<Show when={props.result.book.year > 0}>
-				<span>({props.result.book.year})</span>
-			</Show>
+					<span>({props.result.book.year})</span>
+				</Show>
 				<span>&middot; {props.result.chapter}</span>
 				<span class="result-score">{(props.result.score * 100).toFixed(0)}% match</span>
 			</div>

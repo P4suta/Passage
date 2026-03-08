@@ -40,6 +40,11 @@ describe("SearchInput", () => {
 		expect(screen.getByRole("textbox")).toBeInTheDocument();
 	});
 
+	it("has an aria-live region for results", () => {
+		const { container } = render(() => <SearchInput />);
+		expect(container.querySelector("[aria-live='polite']")).toBeInTheDocument();
+	});
+
 	it("debounces search calls", async () => {
 		const { searchPassages } = await import("../lib/api.js");
 		render(() => <SearchInput />);
@@ -137,6 +142,8 @@ describe("SearchInput", () => {
 		await vi.advanceTimersByTimeAsync(400);
 		await vi.advanceTimersByTimeAsync(0);
 
-		expect(screen.getByRole("alert")).toHaveTextContent("Too many searches. Please wait 30 seconds.");
+		expect(screen.getByRole("alert")).toHaveTextContent(
+			"Too many searches. Please wait 30 seconds.",
+		);
 	});
 });
