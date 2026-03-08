@@ -1,11 +1,10 @@
-import re
 import warnings
 
 import ebooklib
 from ebooklib import epub
 from bs4 import BeautifulSoup, XMLParsedAsHTMLWarning
 
-from passage_pipeline.models import Chapter, ExtractedBook
+from passage_pipeline.models import Chapter, ExtractedBook, slugify
 
 warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
 
@@ -22,7 +21,7 @@ def extract_book(epub_path: str) -> ExtractedBook:
     date_str = date_meta[0][0] if date_meta else ""
     year = int(date_str[:4]) if date_str else 0
 
-    book_id = _slugify(f"{author}-{title}")
+    book_id = slugify(f"{author}-{title}")
 
     chapters: list[Chapter] = []
     for idx, item in enumerate(book.get_items_of_type(ebooklib.ITEM_DOCUMENT)):
@@ -59,9 +58,3 @@ def extract_book(epub_path: str) -> ExtractedBook:
         year=year,
         chapters=chapters,
     )
-
-
-def _slugify(text: str) -> str:
-    slug = text.lower().strip()
-    slug = re.sub(r"[^a-z0-9]+", "-", slug)
-    return slug.strip("-")

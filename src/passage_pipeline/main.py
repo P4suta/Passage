@@ -16,8 +16,10 @@ from passage_pipeline.extract import extract_book
 from passage_pipeline.chunk import chunk_book
 from passage_pipeline.embed import generate_embeddings
 from passage_pipeline.ingest import delete_all_from_vectorize, upload_to_vectorize
-from passage_pipeline.models import CatalogEntry
+from passage_pipeline.models import CatalogEntry, slugify
+from passage_pipeline.progress import ProgressTracker
 from passage_pipeline.store import delete_all_from_r2, upload_to_r2, create_s3_client
+from passage_pipeline._rate_limit import AsyncRateLimiter
 
 # Concurrency limits
 SEM_BOOK = 50
@@ -27,6 +29,22 @@ SEM_EMBED = 30
 SEM_INGEST = 10
 
 _REQUIRED_ENV_VARS = ("CF_ACCOUNT_ID", "CF_API_TOKEN", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY")
+
+COMPLETED_FILE = Path(".completed")
+
+
+def _load_completed(path: Path) -> set[str]:
+    """Load processed book IDs from the completed file."""
+    if not path.exists():
+        return set()
+    text = path.read_text()
+    return {line for line in text.splitlines() if line}
+
+
+def _mark_completed(path: Path, book_id: str) -> None:
+    """Append a book ID to the completed file."""
+    with path.open("a") as f:
+        f.write(f"{book_id}\n")
 
 
 def _check_env_vars() -> None:
@@ -92,12 +110,32 @@ async def run_pipeline(
         catalog = catalog[:max_books]
     print(f"  Found {len(catalog)} books")
 
+    # Load completed books for resume support
+    completed_path = output_dir / COMPLETED_FILE
+    completed = _load_completed(completed_path)
+    if completed:
+        before = len(catalog)
+        catalog = [
+            e for e in catalog
+            if slugify(f"{e.author}-{e.title}") not in completed
+        ]
+        skipped = before - len(catalog)
+        if skipped:
+            print(f"  Skipping {skipped} already-completed books")
+
+    if not catalog:
+        print("No books to process.")
+        return
+
     # Create semaphores
     sem_book = asyncio.Semaphore(SEM_BOOK)
     sem_download = asyncio.Semaphore(SEM_DOWNLOAD)
     sem_r2 = asyncio.Semaphore(SEM_R2)
     sem_embed = asyncio.Semaphore(SEM_EMBED)
     sem_ingest = asyncio.Semaphore(SEM_INGEST)
+
+    # Rate limiter for embed API calls
+    rate_limiter = AsyncRateLimiter(max_per_second=50)
 
     # Create shared S3 client once (skip for dry-run)
     s3_client = None
@@ -108,68 +146,78 @@ async def run_pipeline(
             os.environ["R2_SECRET_ACCESS_KEY"],
         )
 
-    async def _process_book(
-        i: int, total: int, entry: CatalogEntry,
-    ) -> None:
-        """Process a single book through the full pipeline."""
-        async with sem_book:
-            book_name = f"{entry.author} - {entry.title}"
-            print(f"\n[{i + 1}/{total}] {book_name}")
+    with ProgressTracker(len(catalog), dry_run=dry_run) as tracker:
 
-            # Download
-            filename = Path(urlparse(entry.epub_url).path).name
-            epub_path = output_dir / filename
-            async with sem_download:
-                print(f"  Downloading EPUB... ({book_name})")
-                await download_epub(entry.epub_url, epub_path, client=http_client)
-                if download_delay > 0:
-                    await asyncio.sleep(download_delay)
+        async def _process_book(
+            i: int, total: int, entry: CatalogEntry,
+        ) -> None:
+            """Process a single book through the full pipeline."""
+            async with sem_book:
+                book_name = f"{entry.author} - {entry.title}"
+                book_id = slugify(f"{entry.author}-{entry.title}")
+                tracker.log(f"[{i + 1}/{total}] {book_name}")
 
-            # Extract (CPU-bound)
-            print(f"  Extracting text... ({book_name})")
-            extracted = await asyncio.to_thread(extract_book, str(epub_path))
-            if not extracted.chapters:
-                print(f"  Skipping: no chapters found ({book_name})")
-                return
+                # Download
+                filename = Path(urlparse(entry.epub_url).path).name
+                epub_path = output_dir / filename
+                async with sem_download:
+                    await download_epub(entry.epub_url, epub_path, client=http_client)
+                    if download_delay > 0:
+                        await asyncio.sleep(download_delay)
+                tracker.advance("download")
 
-            # Store chapter texts in R2 and chunk in parallel
-            async with sem_r2:
-                print(f"  {'Uploading chapter texts to R2' if not dry_run else '[DRY RUN] Counting chapters for R2'}... ({book_name})")
-                upload_coro = upload_to_r2(
-                    extracted.chapters, extracted.book_id,
-                    dry_run=dry_run, s3_client=s3_client,
-                )
-                chunk_coro = asyncio.to_thread(chunk_book, extracted)
-                uploaded, chunks = await asyncio.gather(upload_coro, chunk_coro)
-                print(f"  {'Uploaded' if not dry_run else 'Would upload'} {uploaded} chapters to R2 ({book_name})")
+                # Extract (CPU-bound)
+                extracted = await asyncio.to_thread(extract_book, str(epub_path))
+                tracker.advance("extract")
 
-            print(f"  Created {len(chunks)} chunks ({book_name})")
+                if not extracted.chapters:
+                    tracker.log(f"  Skipping: no chapters found ({book_name})")
+                    # Advance remaining stages to keep counts consistent
+                    for stage in ("r2", "chunk", "embed", "ingest"):
+                        tracker.advance(stage)
+                    _mark_completed(completed_path, book_id)
+                    return
 
-            if dry_run:
-                print(f"  [DRY RUN] Skipping embedding and ingestion ({book_name})")
-                return
+                # Store chapter texts in R2 and chunk in parallel
+                async with sem_r2:
+                    upload_coro = upload_to_r2(
+                        extracted.chapters, extracted.book_id,
+                        dry_run=dry_run, s3_client=s3_client,
+                    )
+                    chunk_coro = asyncio.to_thread(chunk_book, extracted)
+                    uploaded, chunks = await asyncio.gather(upload_coro, chunk_coro)
+                tracker.advance("r2")
+                tracker.advance("chunk")
 
-            # Embed
-            async with sem_embed:
-                print(f"  Generating embeddings... ({book_name})")
-                texts = [c.text for c in chunks]
-                embeddings = await generate_embeddings(
-                    texts, client=http_client,
-                )
+                if dry_run:
+                    tracker.log(f"  [DRY RUN] {len(chunks)} chunks ({book_name})")
+                    _mark_completed(completed_path, book_id)
+                    return
 
-            # Ingest
-            async with sem_ingest:
-                print(f"  Uploading to Vectorize... ({book_name})")
-                await upload_to_vectorize(
-                    chunks, embeddings, client=http_client,
-                )
+                # Embed
+                async with sem_embed:
+                    texts = [c.text for c in chunks]
+                    embeddings = await generate_embeddings(
+                        texts, client=http_client,
+                        rate_limiter=rate_limiter,
+                    )
+                tracker.advance("embed")
 
-    async with httpx.AsyncClient() as http_client:
-        tasks = [
-            _process_book(i, len(catalog), entry)
-            for i, entry in enumerate(catalog)
-        ]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
+                # Ingest
+                async with sem_ingest:
+                    await upload_to_vectorize(
+                        chunks, embeddings, client=http_client,
+                    )
+                tracker.advance("ingest")
+
+                _mark_completed(completed_path, book_id)
+
+        async with httpx.AsyncClient() as http_client:
+            tasks = [
+                _process_book(i, len(catalog), entry)
+                for i, entry in enumerate(catalog)
+            ]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
 
     # Report errors
     errors = [(i, r) for i, r in enumerate(results) if isinstance(r, Exception)]

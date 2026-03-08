@@ -35,6 +35,7 @@ docs/internal/
 
 # Runtime data
 data/
+.completed
 
 # Node.js
 node_modules/
