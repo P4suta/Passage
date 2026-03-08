@@ -110,6 +110,21 @@ describe("SearchInput", () => {
 		expect(screen.getByRole("alert")).toHaveTextContent("Search failed");
 	});
 
+	it("shows no-results message when search returns empty", async () => {
+		const { searchPassages } = await import("../lib/api.js");
+		vi.mocked(searchPassages).mockResolvedValueOnce({ results: [], count: 0, query: "obscure" });
+
+		render(() => <SearchInput />);
+
+		const input = screen.getByRole("textbox");
+		fireEvent.input(input, { target: { value: "obscure" } });
+
+		await vi.advanceTimersByTimeAsync(400);
+		await vi.advanceTimersByTimeAsync(0);
+
+		expect(screen.getByText("No passages found.")).toBeInTheDocument();
+	});
+
 	it("shows rate limit message on 429 response", async () => {
 		const { searchPassages } = await import("../lib/api.js");
 		vi.mocked(searchPassages).mockRejectedValueOnce(new SearchApiError(429, 30));

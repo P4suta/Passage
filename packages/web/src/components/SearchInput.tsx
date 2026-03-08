@@ -10,6 +10,7 @@ export function SearchInput() {
 	const [results, setResults] = createSignal<SearchResult[]>([]);
 	const [loading, setLoading] = createSignal(false);
 	const [error, setError] = createSignal<string | null>(null);
+	const [hasSearched, setHasSearched] = createSignal(false);
 	let debounceTimer: ReturnType<typeof setTimeout>;
 	let abortController: AbortController | undefined;
 	onCleanup(() => {
@@ -25,6 +26,7 @@ export function SearchInput() {
 		if (text.trim().length === 0) {
 			setResults([]);
 			setError(null);
+			setHasSearched(false);
 			return;
 		}
 
@@ -48,6 +50,7 @@ export function SearchInput() {
 				setResults([]);
 			} finally {
 				setLoading(false);
+				setHasSearched(true);
 			}
 		}, DEBOUNCE_MS);
 	}
@@ -70,7 +73,7 @@ export function SearchInput() {
 					{error()}
 				</p>
 			</Show>
-			<ResultList results={results()} />
+			<ResultList results={results()} hasSearched={hasSearched()} />
 		</div>
 	);
 }

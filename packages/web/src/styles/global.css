@@ -114,6 +114,14 @@ body {
 	font-size: 0.875rem;
 }
 
+/* No results */
+.no-results {
+	text-align: center;
+	color: var(--color-text-muted);
+	padding: var(--space-xl) var(--space-md);
+	font-size: 1rem;
+}
+
 /* Results */
 .result-list {
 	display: flex;
