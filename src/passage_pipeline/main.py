@@ -1,6 +1,8 @@
 import argparse
+import os
 import sys
 from pathlib import Path
+from urllib.parse import urlparse
 
 from passage_pipeline.acquire import fetch_catalog, download_epub, OUTPUT_DIR
 from passage_pipeline.extract import extract_book
@@ -13,24 +15,42 @@ def run_pipeline(
     max_books: int | None = None,
     dry_run: bool = False,
     output_dir: Path = OUTPUT_DIR,
+    language: str | None = None,
 ) -> None:
     """Run the full preprocessing pipeline."""
+    if not dry_run:
+        missing = [
+            key for key in ("CF_ACCOUNT_ID", "CF_API_TOKEN")
+            if not os.environ.get(key)
+        ]
+        if missing:
+            print(
+                f"Error: required environment variables not set: {', '.join(missing)}\n"
+                "Set them in .env or export them. See .env.example for details.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
     # Stage 1: Acquire
     print("Stage 1: Fetching OPDS catalog...")
     catalog = fetch_catalog()
+
+    if language:
+        catalog = [e for e in catalog if e.language.startswith(language)]
+
     if max_books:
         catalog = catalog[:max_books]
     print(f"  Found {len(catalog)} books")
 
     for i, entry in enumerate(catalog):
-        book_name = f"{entry['author']} - {entry['title']}"
+        book_name = f"{entry.author} - {entry.title}"
         print(f"\n[{i + 1}/{len(catalog)}] {book_name}")
 
         # Download
-        filename = entry["epub_url"].split("/")[-1]
+        filename = Path(urlparse(entry.epub_url).path).name
         epub_path = output_dir / filename
         print("  Downloading EPUB...")
-        download_epub(entry["epub_url"], epub_path)
+        download_epub(entry.epub_url, epub_path)
 
         # Stage 2: Extract
         print("  Extracting text...")
@@ -81,11 +101,18 @@ def main() -> None:
         default=OUTPUT_DIR,
         help="Directory for downloaded EPUBs",
     )
+    parser.add_argument(
+        "--language",
+        type=str,
+        default=None,
+        help="Filter by language prefix (e.g. 'en' for English)",
+    )
     args = parser.parse_args()
     run_pipeline(
         max_books=args.max_books,
         dry_run=args.dry_run,
         output_dir=args.output_dir,
+        language=args.language,
     )
 
 

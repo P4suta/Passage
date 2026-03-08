@@ -1,8 +1,31 @@
+import os
 import tempfile
 from pathlib import Path
 
 import pytest
+from dotenv import load_dotenv
 from ebooklib import epub
+
+load_dotenv()
+
+
+def pytest_collection_modifyitems(config, items):
+    """Skip integration tests unless --run-integration is passed."""
+    if config.getoption("--run-integration", default=False):
+        return
+    skip_integration = pytest.mark.skip(reason="use --run-integration to run")
+    for item in items:
+        if "integration" in item.keywords:
+            item.add_marker(skip_integration)
+
+
+def pytest_addoption(parser):
+    parser.addoption(
+        "--run-integration",
+        action="store_true",
+        default=False,
+        help="Run integration tests that access external services",
+    )
 
 
 @pytest.fixture
