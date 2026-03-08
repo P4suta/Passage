@@ -29,13 +29,42 @@ SEM_INGEST = 10
 
 def run_reset() -> None:
     """Delete all data from R2 and Vectorize."""
-    print("Resetting: deleting all data from R2...")
-    r2_count = delete_all_from_r2()
-    print(f"  Deleted {r2_count} objects from R2")
+    missing = [
+        key for key in (
+            "CF_ACCOUNT_ID", "CF_API_TOKEN",
+            "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY",
+        )
+        if not os.environ.get(key)
+    ]
+    if missing:
+        print(
+            f"Error: required environment variables not set: {', '.join(missing)}\n"
+            "Copy .env.example to .env and fill in the values.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
-    print("Resetting: deleting all vectors from Vectorize...")
-    vec_count = delete_all_from_vectorize()
-    print(f"  Deleted {vec_count} vectors from Vectorize")
+    r2_ok, vec_ok = False, False
+
+    try:
+        print("Resetting: deleting all data from R2...")
+        r2_count = delete_all_from_r2()
+        print(f"  Deleted {r2_count} objects from R2")
+        r2_ok = True
+    except Exception as e:
+        print(f"  R2 deletion failed: {e}", file=sys.stderr)
+
+    try:
+        print("Resetting: deleting all vectors from Vectorize...")
+        vec_count = delete_all_from_vectorize()
+        print(f"  Deleted {vec_count} vectors from Vectorize")
+        vec_ok = True
+    except Exception as e:
+        print(f"  Vectorize deletion failed: {e}", file=sys.stderr)
+
+    if not (r2_ok and vec_ok):
+        print("Reset incomplete. Re-run --reset to retry.", file=sys.stderr)
+        sys.exit(1)
 
     print("Reset complete.")
 
