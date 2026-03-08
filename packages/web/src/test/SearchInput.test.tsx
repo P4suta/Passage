@@ -130,6 +130,25 @@ describe("SearchInput", () => {
 		expect(screen.getByText("No passages found.")).toBeInTheDocument();
 	});
 
+	it("prevents newline on Enter key", () => {
+		render(() => <SearchInput />);
+		const input = screen.getByRole("textbox");
+
+		fireEvent.input(input, { target: { value: "hello" } });
+		const prevented = !fireEvent.keyDown(input, { key: "Enter" });
+
+		expect(prevented).toBe(true);
+	});
+
+	it("allows newline on Shift+Enter", () => {
+		render(() => <SearchInput />);
+		const input = screen.getByRole("textbox");
+
+		const prevented = !fireEvent.keyDown(input, { key: "Enter", shiftKey: true });
+
+		expect(prevented).toBe(false);
+	});
+
 	it("shows rate limit message on 429 response", async () => {
 		const { searchPassages } = await import("../lib/api.js");
 		vi.mocked(searchPassages).mockRejectedValueOnce(new SearchApiError(429, 30));
