@@ -2,6 +2,10 @@ name = "passage-api"
 main = "src/index.ts"
 compatibility_date = "2026-01-01"
 
+[[routes]]
+pattern = "passage-api.sakashita.page"
+custom_domain = true
+
 [ai]
 binding = "AI"
 

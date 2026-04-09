@@ -1,75 +1,122 @@
+import re
 from dataclasses import replace
 
 from passage_pipeline.models import ExtractedBook, TextChunk
 
-MIN_CHUNK_CHARS = 80
-MAX_CHUNK_CHARS = 1500
+MIN_CHUNK_CHARS = 50
+TARGET_CHUNK_CHARS = 200
+MAX_CHUNK_CHARS = 400
+
+_ABBREVIATIONS = re.compile(
+    r"\b(Mr|Mrs|Ms|Dr|St|Jr|Sr|vs|etc|Prof|Gen|Col|Sgt|Corp|Lt|Capt|Maj|Rev)\.$",
+    re.IGNORECASE,
+)
+
+_SENTENCE_END = re.compile(
+    r'(?<=[.!?])(?:["\u201d\u2019\u300d])?\s+|(?<=[。！？])(?:["\u201d\u2019\u300d])?'
+)
 
 
-def _split_long_text(text: str, max_chars: int) -> list[str]:
-    """Split text exceeding max_chars at sentence boundaries."""
-    if len(text) <= max_chars:
-        return [text]
-
-    fragments: list[str] = []
-    remaining = text
-    while len(remaining) > max_chars:
-        cut = max_chars
-        for sep in (". ", ".\u201d ", "! ", "? ", "。", "！", "？"):
-            pos = remaining.rfind(sep, 0, max_chars)
-            if pos > 0:
-                cut = pos + len(sep)
-                break
+def _split_sentences(text: str) -> list[str]:
+    """Split text into sentences, respecting abbreviations and ellipses."""
+    parts = _SENTENCE_END.split(text)
+    sentences: list[str] = []
+    for part in parts:
+        stripped = part.strip()
+        if not stripped:
+            continue
+        # Merge back if previous ended with an abbreviation or ellipsis
+        if sentences and (
+            _ABBREVIATIONS.search(sentences[-1])
+            or sentences[-1].endswith("...")
+        ):
+            sentences[-1] = sentences[-1] + " " + stripped
         else:
-            # No sentence boundary found — split at space
-            space_pos = remaining.rfind(" ", 0, max_chars)
-            if space_pos > max_chars // 2:
-                cut = space_pos + 1
-        fragments.append(remaining[:cut].rstrip())
-        remaining = remaining[cut:].lstrip()
-    if remaining:
-        fragments.append(remaining)
-    return fragments
+            sentences.append(stripped)
+    return sentences
+
+
+def _group_sentences(
+    sentences: list[str], paragraph_breaks: set[int]
+) -> list[str]:
+    """Group sentences into chunks respecting TARGET/MAX limits and paragraph breaks."""
+    chunks: list[str] = []
+    buffer = ""
+    buffer_has_para_break = False
+
+    for i, sentence in enumerate(sentences):
+        is_para_break = i in paragraph_breaks
+
+        # If adding this sentence would exceed MAX and buffer is non-empty, flush
+        if buffer:
+            sep = "\n\n" if is_para_break or buffer_has_para_break else " "
+            candidate = buffer + sep + sentence
+            if len(candidate) > MAX_CHUNK_CHARS:
+                chunks.append(buffer)
+                buffer = sentence
+                buffer_has_para_break = False
+            elif is_para_break and len(buffer) >= MIN_CHUNK_CHARS:
+                # Respect paragraph boundary: flush current buffer
+                chunks.append(buffer)
+                buffer = sentence
+                buffer_has_para_break = False
+            elif len(buffer) >= TARGET_CHUNK_CHARS:
+                # Buffer already at target, flush before adding more
+                chunks.append(buffer)
+                buffer = sentence
+                buffer_has_para_break = False
+            else:
+                buffer = candidate
+                if is_para_break:
+                    buffer_has_para_break = True
+        else:
+            buffer = sentence
+            buffer_has_para_break = False
+
+    # Handle final buffer
+    if buffer:
+        if len(buffer) < MIN_CHUNK_CHARS and chunks:
+            # Merge into previous chunk
+            chunks[-1] = chunks[-1] + "\n\n" + buffer
+        elif len(buffer) >= MIN_CHUNK_CHARS:
+            chunks.append(buffer)
+        # else: below MIN with no previous chunk → discard
+
+    return chunks
 
 
 def chunk_book(book: ExtractedBook) -> list[TextChunk]:
-    """Split an entire book into chunks by paragraph boundaries."""
+    """Split an entire book into chunks by sentence grouping."""
     chunks: list[TextChunk] = []
     global_index = 0
 
     for chapter in book.chapters:
         paragraphs = chapter.text.split("\n\n")
-        buffer = ""
+        all_sentences: list[str] = []
+        paragraph_breaks: set[int] = set()
 
-        for raw_para in paragraphs:
-            for para in _split_long_text(raw_para, MAX_CHUNK_CHARS):
-                candidate = f"{buffer}\n\n{para}".strip() if buffer else para
+        for p_idx, para in enumerate(paragraphs):
+            para = para.strip()
+            if not para:
+                continue
+            sentences = _split_sentences(para)
+            if not sentences:
+                continue
+            if all_sentences:
+                # Mark the start of a new paragraph
+                paragraph_breaks.add(len(all_sentences))
+            all_sentences.extend(sentences)
 
-                if len(candidate) > MAX_CHUNK_CHARS and buffer:
-                    chunks.append(
-                        TextChunk(
-                            chunk_id=f"{book.book_id}:{global_index:05d}",
-                            text=buffer,
-                            book_id=book.book_id,
-                            title=book.title,
-                            author=book.author,
-                            year=book.year,
-                            language=book.language,
-                            chapter=chapter.title,
-                            chunk_index=global_index,
-                        )
-                    )
-                    global_index += 1
-                    buffer = para
-                else:
-                    buffer = candidate
+        if not all_sentences:
+            continue
 
-        # Flush remaining buffer
-        if buffer and len(buffer) >= MIN_CHUNK_CHARS:
+        grouped = _group_sentences(all_sentences, paragraph_breaks)
+
+        for text in grouped:
             chunks.append(
                 TextChunk(
                     chunk_id=f"{book.book_id}:{global_index:05d}",
-                    text=buffer,
+                    text=text,
                     book_id=book.book_id,
                     title=book.title,
                     author=book.author,
@@ -80,9 +127,5 @@ def chunk_book(book: ExtractedBook) -> list[TextChunk]:
                 )
             )
             global_index += 1
-        elif buffer and chunks:
-            # Too short — merge into previous chunk
-            last = chunks[-1]
-            chunks[-1] = replace(last, text=f"{last.text}\n\n{buffer}")
 
     return chunks

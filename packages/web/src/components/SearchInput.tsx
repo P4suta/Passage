@@ -1,6 +1,7 @@
 import { Show, createSignal, onCleanup } from "solid-js";
 import { SearchApiError, searchPassages } from "../lib/api.js";
 import type { SearchResult } from "../lib/types.js";
+import { LoadingQuotes } from "./LoadingQuotes.js";
 import { ResultList } from "./ResultList.js";
 
 const DEBOUNCE_MS = 400;
@@ -57,9 +58,13 @@ export function SearchInput() {
 
 	return (
 		<div class="search-container">
+			<label class="search-label" for="search-input">
+				What are you looking for?
+			</label>
 			<textarea
+				id="search-input"
 				class="search-input"
-				placeholder="Describe a feeling, a scene, a mood..."
+				placeholder={`a quiet moment of solitude before dawn\nthe weight of an unspoken goodbye\nfinding courage in the face of the unknown`}
 				value={query()}
 				onInput={(e) => handleInput(e.currentTarget.value)}
 				onKeyDown={(e) => {
@@ -72,7 +77,7 @@ export function SearchInput() {
 			/>
 			<div aria-live="polite">
 				<Show when={loading()}>
-					<div class="loading-indicator" aria-label="Searching..." />
+					<LoadingQuotes />
 				</Show>
 				<Show when={error()}>
 					<p class="error-message" role="alert">
