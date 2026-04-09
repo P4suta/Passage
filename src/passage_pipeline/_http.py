@@ -8,3 +8,14 @@ RETRY_DELAY = 3.0
 def is_retryable(exc: httpx.HTTPStatusError) -> bool:
     """Return True if the HTTP error is worth retrying (5xx or 429)."""
     return exc.response.status_code >= 500 or exc.response.status_code == 429
+
+
+def retry_after(resp: httpx.Response) -> float | None:
+    """Parse Retry-After header value (seconds). Returns None if absent/invalid."""
+    value = resp.headers.get("retry-after")
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (ValueError, TypeError):
+        return None

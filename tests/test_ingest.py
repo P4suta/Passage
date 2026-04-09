@@ -192,3 +192,35 @@ class TestUploadToVectorize:
         await upload_to_vectorize(chunks, embeddings, ACCOUNT_ID, API_TOKEN)
         request = route.calls[0].request
         assert request.headers["authorization"] == f"Bearer {API_TOKEN}"
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_retry_on_server_error(self):
+        chunks = [_make_chunk(0)]
+        embeddings = [[0.1]]
+        route = respx.post(url__eq=API_URL).mock(
+            side_effect=[
+                httpx.Response(500),
+                httpx.Response(200, json={"success": True}),
+            ]
+        )
+        await upload_to_vectorize(chunks, embeddings, ACCOUNT_ID, API_TOKEN)
+        assert route.call_count == 2
+
+    @respx.mock
+    def test_delete_retry_on_server_error(self):
+        vectors = [{"id": "id-0"}]
+        respx.get(url__startswith=LIST_URL).mock(
+            return_value=httpx.Response(200, json={
+                "result": {"vectors": vectors, "nextCursor": None},
+            })
+        )
+        delete_route = respx.post(url__eq=DELETE_URL).mock(
+            side_effect=[
+                httpx.Response(500),
+                httpx.Response(200, json={"success": True}),
+            ]
+        )
+        count = delete_all_from_vectorize(ACCOUNT_ID, API_TOKEN)
+        assert count == 1
+        assert delete_route.call_count == 2

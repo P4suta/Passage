@@ -151,10 +151,6 @@ async def upload_to_vectorize(
                         raise
                     await asyncio.sleep(RETRY_DELAY * (attempt + 1))
 
-            print(
-                f"  Uploaded {min(i + VECTORIZE_BATCH_SIZE, len(chunks))}"
-                f"/{len(chunks)} vectors"
-            )
     finally:
         if own_client:
             await client.aclose()

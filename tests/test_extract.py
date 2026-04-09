@@ -42,10 +42,10 @@ class TestExtractBook:
 
 class TestSlugify:
     def test_basic(self):
-        assert _slugify("Jane Austen-Pride and Prejudice") == "jane-austen-pride-and-prejudice"
+        assert slugify("Jane Austen-Pride and Prejudice") == "jane-austen-pride-and-prejudice"
 
     def test_special_chars(self):
-        assert _slugify("É. Zola — L'Assommoir!") == "zola-l-assommoir"
+        assert slugify("É. Zola — L'Assommoir!") == "zola-l-assommoir"
 
     def test_leading_trailing(self):
-        assert _slugify("  --hello-- ") == "hello"
+        assert slugify("  --hello-- ") == "hello"

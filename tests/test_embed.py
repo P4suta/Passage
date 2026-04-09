@@ -2,6 +2,8 @@ import httpx
 import pytest
 import respx
 
+from passage_pipeline._rate_limit import AsyncRateLimiter
+from passage_pipeline._http import retry_after
 from passage_pipeline.embed import (
     generate_embeddings,
     _make_batches,
@@ -139,4 +141,60 @@ class TestGenerateEmbeddings:
             )
         )
         result = await generate_embeddings(texts)
+        assert len(result) == 1
+
+
+class TestRetryAfter:
+    def test_parses_numeric_header(self):
+        resp = httpx.Response(429, headers={"retry-after": "5"})
+        assert retry_after(resp) == 5.0
+
+    def test_parses_float_header(self):
+        resp = httpx.Response(429, headers={"retry-after": "1.5"})
+        assert retry_after(resp) == 1.5
+
+    def test_returns_none_when_absent(self):
+        resp = httpx.Response(429)
+        assert retry_after(resp) is None
+
+    def test_returns_none_for_invalid(self):
+        resp = httpx.Response(429, headers={"retry-after": "not-a-number"})
+        assert retry_after(resp) is None
+
+    def test_returns_zero_when_header_is_zero(self):
+        resp = httpx.Response(429, headers={"retry-after": "0"})
+        assert retry_after(resp) == 0.0
+
+
+class TestRateLimiterIntegration:
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_rate_limiter_called_per_batch(self):
+        """Rate limiter is invoked once per batch."""
+        texts = [f"text {i}" for i in range(MAX_BATCH_SIZE + 10)]
+        route = respx.post(url__eq=API_URL).mock(
+            side_effect=[
+                httpx.Response(200, json=_mock_embedding_response(1024, MAX_BATCH_SIZE)),
+                httpx.Response(200, json=_mock_embedding_response(1024, 10)),
+            ]
+        )
+        limiter = AsyncRateLimiter(max_per_second=1000)
+        result = await generate_embeddings(
+            texts, ACCOUNT_ID, API_TOKEN, rate_limiter=limiter,
+        )
+        assert len(result) == MAX_BATCH_SIZE + 10
+        assert route.call_count == 2
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_retry_after_header_used_on_429(self):
+        """When 429 has Retry-After, that value is used for the wait."""
+        texts = ["text"]
+        respx.post(url__eq=API_URL).mock(
+            side_effect=[
+                httpx.Response(429, headers={"retry-after": "0"}),
+                httpx.Response(200, json=_mock_embedding_response(1024, 1)),
+            ]
+        )
+        result = await generate_embeddings(texts, ACCOUNT_ID, API_TOKEN)
         assert len(result) == 1

@@ -6,7 +6,8 @@ from typing import TYPE_CHECKING
 
 import httpx
 
-from passage_pipeline._http import CF_API_BASE, MAX_RETRIES, RETRY_DELAY, is_retryable
+from passage_pipeline._http import CF_API_BASE, MAX_RETRIES, RETRY_DELAY, is_retryable, retry_after
+from passage_pipeline._rate_limit import AsyncRateLimiter
 
 if TYPE_CHECKING:
     from passage_pipeline._rate_limit import AsyncRateLimiter
@@ -66,8 +67,9 @@ async def generate_embeddings(
 
     try:
         for batch in batches:
-            if rate_limiter:
+            if rate_limiter is not None:
                 await rate_limiter.acquire()
+
             for attempt in range(MAX_RETRIES):
                 try:
                     resp = await client.post(
@@ -83,13 +85,14 @@ async def generate_embeddings(
                 except httpx.HTTPStatusError as e:
                     if not is_retryable(e) or attempt == MAX_RETRIES - 1:
                         raise
-                    await asyncio.sleep(RETRY_DELAY * (attempt + 1))
+                    ra = retry_after(e.response)
+                    delay = ra if ra is not None else RETRY_DELAY * (attempt + 1)
+                    await asyncio.sleep(delay)
                 except httpx.TransportError:
                     if attempt == MAX_RETRIES - 1:
                         raise
                     await asyncio.sleep(RETRY_DELAY * (attempt + 1))
 
-            print(f"  Embedded {len(all_embeddings)}/{len(texts)} chunks")
     finally:
         if own_client:
             await client.aclose()
