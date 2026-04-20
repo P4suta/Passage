@@ -89,11 +89,6 @@ export function SearchInput() {
 				<Show when={loading()}>
 					<LoadingQuotes />
 				</Show>
-				<Show when={error()}>
-					<p class="error-message" role="alert">
-						{error()}
-					</p>
-				</Show>
 				<ResultList results={results()} hasSearched={hasSearched()} />
 			</div>
 		</div>
