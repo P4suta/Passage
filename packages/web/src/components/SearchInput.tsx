@@ -64,7 +64,9 @@ export function SearchInput() {
 			<textarea
 				id="search-input"
 				class="search-input"
-				placeholder={`a quiet moment of solitude before dawn\nthe weight of an unspoken goodbye\nfinding courage in the face of the unknown`}
+				placeholder={
+					"a quiet moment of solitude before dawn\nthe weight of an unspoken goodbye\nfinding courage in the face of the unknown"
+				}
 				value={query()}
 				onInput={(e) => handleInput(e.currentTarget.value)}
 				onKeyDown={(e) => {

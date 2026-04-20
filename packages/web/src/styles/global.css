@@ -79,9 +79,7 @@ body {
 	border: 1px solid var(--color-border);
 	border-radius: var(--border-radius);
 	resize: none;
-	transition:
-		border-color 0.3s ease,
-		box-shadow 0.3s ease;
+	transition: border-color 0.3s ease, box-shadow 0.3s ease;
 	line-height: 1.9;
 }
 
