@@ -64,7 +64,9 @@ export function SearchInput() {
 			<textarea
 				id="search-input"
 				class="search-input"
-				placeholder={`a quiet moment of solitude before dawn\nthe weight of an unspoken goodbye\nfinding courage in the face of the unknown`}
+				placeholder={
+					"a quiet moment of solitude before dawn\nthe weight of an unspoken goodbye\nfinding courage in the face of the unknown"
+				}
 				value={query()}
 				onInput={(e) => handleInput(e.currentTarget.value)}
 				onKeyDown={(e) => {
@@ -75,9 +77,6 @@ export function SearchInput() {
 				rows={3}
 				aria-label="Search query"
 			/>
-			<Show when={loading()}>
-				<div class="loading-indicator" aria-label="Searching..." />
-			</Show>
 			<Show when={error()}>
 				<p class="error-message" role="alert">
 					{error()}
@@ -86,11 +85,6 @@ export function SearchInput() {
 			<div aria-live="polite">
 				<Show when={loading()}>
 					<LoadingQuotes />
-				</Show>
-				<Show when={error()}>
-					<p class="error-message" role="alert">
-						{error()}
-					</p>
 				</Show>
 				<ResultList results={results()} hasSearched={hasSearched()} />
 			</div>

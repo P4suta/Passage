@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from passage_pipeline.extract import extract_book
-from passage_pipeline.models import slugify as _slugify
+from passage_pipeline.models import slugify
 
 
 class TestExtractBook:
